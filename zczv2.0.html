@@ -2,8 +2,8 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>身材蜕变与成本追踪 Pro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>身材蜕变追踪 Pro (预测版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
@@ -12,29 +12,24 @@
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
-        body { font-family: 'Noto Sans SC', sans-serif; background-color: #f1f5f9; }
+        body { font-family: 'Noto Sans SC', sans-serif; background-color: #f8fafc; -webkit-tap-highlight-color: transparent; }
         [v-cloak] { display: none !important; }
         
-        /* 玻璃拟态卡片 */
         .glass-panel {
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.6);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
         }
 
-        /* 肌肉线条动画 */
-        .muscle-reveal-enter-active, .muscle-reveal-leave-active { transition: opacity 1s ease; }
-        
-        /* 按钮动效 */
-        .btn-click:active { transform: scale(0.96); }
+        .btn-active:active { transform: scale(0.96); opacity: 0.9; }
 
-        /* 身体模型容器 */
+        /* 人体模型容器 */
         .body-container {
             position: relative;
-            height: 240px;
-            width: 140px;
+            height: 320px;
+            width: 200px;
             margin: 0 auto;
+            filter: drop-shadow(0 10px 15px rgba(0,0,0,0.1));
         }
         .body-layer {
             position: absolute;
@@ -42,195 +37,235 @@
             left: 0;
             width: 100%;
             height: 100%;
-            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 1s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
         }
+        
+        .muscle-glow { filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.5)); }
+        
+        /* 预测胶囊动画 */
+        @keyframes pulse-soft {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        .animate-pulse-soft { animation: pulse-soft 3s infinite; }
     </style>
 </head>
 <body class="text-slate-700">
 
-<div id="app" v-cloak class="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
+<div id="app" v-cloak class="min-h-screen p-3 md:p-6 max-w-7xl mx-auto pb-20 md:pb-6">
     
     <!-- 顶部导航 -->
-    <header class="mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
-        <div>
-            <h1 class="text-3xl font-bold text-slate-800 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
-                <i class="fas fa-dumbbell mr-2 text-blue-600"></i>身材蜕变追踪
+    <header class="mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div class="text-center md:text-left">
+            <h1 class="text-2xl md:text-3xl font-bold text-slate-800 bg-clip-text text-transparent bg-gradient-to-r from-amber-600 to-indigo-600">
+                <i class="fas fa-dumbbell mr-2 text-amber-500"></i>身材雕刻师
             </h1>
-            <p class="text-slate-500 mt-1 text-sm">看着多余的脂肪一点点消失</p>
+            <p class="text-slate-500 mt-1 text-xs md:text-sm">可视化你的每一次努力</p>
         </div>
-        <div class="flex flex-wrap gap-2 justify-center md:justify-end">
-            <button @click="downloadTemplate" class="btn-click px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg shadow-sm hover:bg-slate-50 text-sm transition">
-                <i class="fas fa-download mr-1"></i> 模板
+        
+        <div class="flex gap-2 w-full md:w-auto justify-center">
+            <button @click="downloadTemplate" class="btn-active flex-1 md:flex-none px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg shadow-sm text-sm font-medium">
+                <i class="fas fa-download md:mr-1"></i> <span class="hidden md:inline">模板</span>
             </button>
-            <label class="btn-click px-3 py-2 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 text-sm transition cursor-pointer flex items-center">
-                <i class="fas fa-file-import mr-1"></i> 导入 Excel
+            <label class="btn-active flex-1 md:flex-none px-3 py-2 bg-indigo-600 text-white rounded-lg shadow-md text-sm font-medium cursor-pointer flex items-center justify-center">
+                <i class="fas fa-file-import md:mr-1"></i> <span class="hidden md:inline">导入</span>
+                <span class="md:hidden">导入</span>
                 <input type="file" @change="importExcel" class="hidden" accept=".xlsx, .xls">
             </label>
-            <button @click="resetData" class="btn-click px-3 py-2 bg-rose-50 text-rose-600 border border-rose-100 rounded-lg hover:bg-rose-100 text-sm transition">
+            <button @click="resetData" class="btn-active px-3 py-2 bg-rose-50 text-rose-500 border border-rose-100 rounded-lg text-sm">
                 <i class="fas fa-trash"></i>
             </button>
         </div>
     </header>
 
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
         
-        <!-- 左侧：设置与录入 (占4列) -->
-        <div class="lg:col-span-4 space-y-6">
-            
-            <!-- 1. 基础设定 -->
-            <div class="glass-panel rounded-2xl p-5">
-                <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">🎯 目标设定</h3>
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="block text-xs text-slate-500 mb-1">初始 (KG)</label>
-                        <input type="number" v-model.number="settings.initialWeight" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-slate-500 mb-1">目标 (KG)</label>
-                        <input type="number" v-model.number="settings.targetWeight" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-200 outline-none">
-                    </div>
-                </div>
-                <button @click="saveSettings" class="btn-click w-full bg-slate-800 text-white text-sm py-2 rounded-lg hover:bg-slate-700 transition">
-                    保存设定
-                </button>
-            </div>
-
-            <!-- 2. 每日打卡 -->
-            <div class="glass-panel rounded-2xl p-5 border-t-4 border-indigo-500">
-                <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center">
-                    <i class="fas fa-pen-fancy text-indigo-500 mr-2"></i> 今日记录
+        <!-- 左侧：操作区 -->
+        <div class="lg:col-span-4 space-y-4 md:space-y-6 order-2 lg:order-1">
+            <!-- 打卡卡片 -->
+            <div class="glass-panel rounded-2xl p-5 border-t-4 border-indigo-500 shadow-lg">
+                <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center justify-between">
+                    <span><i class="fas fa-pen-fancy text-indigo-500 mr-2"></i>今日打卡</span>
+                    <span class="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-1 rounded">{{ newRecord.date }}</span>
                 </h3>
                 <form @submit.prevent="addRecord" class="space-y-4">
-                    <input type="date" v-model="newRecord.date" required class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500">
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="text-xs text-slate-400">体重 (KG)</label>
-                            <input type="number" step="0.01" v-model.number="newRecord.weight" required placeholder="0.0" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 font-bold text-slate-700">
+                            <label class="text-xs text-slate-500 font-medium ml-1">体重 (KG)</label>
+                            <input type="number" step="0.01" v-model.number="newRecord.weight" required placeholder="0.0" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition text-lg font-bold text-slate-700">
                         </div>
                         <div>
-                            <label class="text-xs text-slate-400">花费 (元)</label>
-                            <input type="number" step="0.1" v-model.number="newRecord.cost" placeholder="0" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500">
+                            <label class="text-xs text-slate-500 font-medium ml-1">花费 (元)</label>
+                            <input type="number" step="0.1" v-model.number="newRecord.cost" placeholder="0" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition text-lg text-slate-700">
                         </div>
                     </div>
-                    <button type="submit" class="btn-click w-full bg-gradient-to-r from-indigo-600 to-blue-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition">
-                        打卡
+                    <details class="group">
+                        <summary class="list-none text-xs text-center text-indigo-500 cursor-pointer py-1">
+                            补录其他日期 <i class="fas fa-chevron-down text-[10px]"></i>
+                        </summary>
+                        <input type="date" v-model="newRecord.date" required class="mt-2 w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                    </details>
+                    <button type="submit" class="btn-active w-full bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-indigo-200 transition flex items-center justify-center gap-2">
+                        <i class="fas fa-check-circle"></i> 提交记录
                     </button>
                 </form>
             </div>
 
-            <!-- 3. 经济账 -->
-            <div class="glass-panel rounded-2xl p-5 flex justify-between items-center">
-                <div>
-                    <p class="text-xs text-slate-500">累计投入</p>
-                    <p class="text-2xl font-bold text-slate-800">¥{{ totalCost.toLocaleString() }}</p>
+            <!-- 目标设定 -->
+            <div class="glass-panel rounded-2xl p-4">
+                <div @click="showSettings = !showSettings" class="flex justify-between items-center cursor-pointer">
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider">🎯 目标设定</h3>
+                    <i class="fas fa-chevron-down transition-transform duration-300 text-slate-400" :class="{'rotate-180': showSettings}"></i>
                 </div>
-                <div class="text-right">
-                    <p class="text-xs text-slate-500">每斤成本</p>
-                    <p class="text-xl font-bold text-amber-500">¥{{ costPerJin }}</p>
+                <div v-if="showSettings" class="mt-4 grid grid-cols-2 gap-3 animate-fade-in">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">初始 (KG)</label>
+                        <input type="number" v-model.number="settings.initialWeight" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">目标 (KG)</label>
+                        <input type="number" v-model.number="settings.targetWeight" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                    </div>
+                    <button @click="saveSettings" class="col-span-2 mt-2 btn-active bg-slate-800 text-white text-xs py-2 rounded-lg">保存设定</button>
                 </div>
             </div>
         </div>
 
-        <!-- 中间：可视化模型 (占4列) -->
-        <div class="lg:col-span-4 flex flex-col gap-6">
-            <div class="glass-panel rounded-2xl p-6 flex-1 flex flex-col items-center justify-center relative overflow-hidden bg-gradient-to-b from-white to-slate-50">
-                <h3 class="text-lg font-bold text-slate-800 mb-2">身材蜕变进度</h3>
+        <!-- 中间：精美人体模型 + 预测 (LG: 4/12) -->
+        <div class="lg:col-span-4 order-1 lg:order-2">
+            <div class="glass-panel rounded-2xl p-6 h-full flex flex-col items-center justify-center relative overflow-hidden bg-gradient-to-b from-white to-slate-100 min-h-[450px]">
                 
-                <!-- 进度条 -->
-                <div class="w-full max-w-[200px] bg-slate-200 rounded-full h-2 mb-6">
-                    <div class="bg-gradient-to-r from-indigo-500 to-teal-400 h-2 rounded-full transition-all duration-1000" :style="{width: progressPercent + '%'}"></div>
+                <!-- 顶部数据 -->
+                <div class="absolute top-4 left-0 right-0 px-6 flex justify-between items-start z-20">
+                    <div>
+                        <p class="text-xs text-slate-400">当前体重</p>
+                        <p class="text-3xl font-bold text-slate-800">{{ currentWeight }}<span class="text-sm font-normal text-slate-500">kg</span></p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-slate-400">完成度</p>
+                        <p class="text-xl font-bold text-amber-500">{{ progressPercent }}%</p>
+                    </div>
                 </div>
 
-                <!-- 核心视觉：脂包肌模型 -->
-                <div class="body-container">
-                    <!-- 1. 底层：肌肉人 (目标状态) -->
-                    <!-- 始终显示，但在脂肪层下面 -->
-                    <svg class="body-layer" viewBox="0 0 100 200" xmlns="http://www.w3.org/2000/svg">
+                <!-- 人体模型 -->
+                <div class="body-container mt-8">
+                    <!-- 1. 肌肉层 (底层) -->
+                    <svg class="body-layer muscle-glow" viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg">
                         <defs>
-                            <linearGradient id="muscleGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
+                            <linearGradient id="goldSkin" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#d97706;stop-opacity:1" />
+                                <stop offset="50%" style="stop-color:#f59e0b;stop-opacity:1" />
                                 <stop offset="100%" style="stop-color:#d97706;stop-opacity:1" />
                             </linearGradient>
                         </defs>
-                        <!-- 头 -->
-                        <circle cx="50" cy="25" r="12" fill="#d97706" />
-                        <!-- 倒三角身体 (宽肩窄腰) -->
-                        <path d="M25 45 L75 45 L60 100 L65 180 L55 180 L50 110 L45 180 L35 180 L40 100 L25 45 Z" fill="url(#muscleGradient)" />
-                        <!-- 腹肌线条示意 -->
-                        <path d="M40 60 L60 60 M42 70 L58 70 M45 80 L55 80" stroke="rgba(255,255,255,0.5)" stroke-width="2" />
+                        <path d="M100 30 C 115 30, 120 45, 120 55 L 150 60 C 160 62, 165 70, 160 85 L 155 130 C 153 140, 145 140, 140 130 L 135 100 L 130 150 C 135 180, 135 220, 130 250 L 135 350 L 110 350 L 105 260 L 95 260 L 90 350 L 65 350 L 70 250 C 65 220, 65 180, 70 150 L 65 100 L 60 130 C 55 140, 47 140, 45 130 L 40 85 C 35 70, 40 62, 50 60 L 80 55 C 80 45, 85 30, 100 30 Z" fill="url(#goldSkin)" />
+                        <g stroke="rgba(255,255,255,0.4)" stroke-width="2" fill="none" stroke-linecap="round">
+                            <path d="M75 85 Q 100 100, 125 85" /> 
+                            <path d="M100 85 L 100 110" />
+                            <path d="M85 110 H 115 M 88 125 H 112 M 90 140 H 110" />
+                            <path d="M75 160 Q 100 180, 125 160" opacity="0.6"/>
+                        </g>
                     </svg>
 
-                    <!-- 2. 顶层：脂肪层 (初始状态) -->
-                    <!-- 透明度随进度降低，宽度随进度收缩 -->
+                    <!-- 2. 脂肪层 (顶层) -->
                     <svg class="body-layer" 
                          :style="{ 
-                             opacity: (100 - progressPercent) / 100,
-                             transform: `scaleX(${1 + (100 - progressPercent)/300})` 
+                             opacity: Math.max(0, (100 - progressPercent) / 100),
+                             transform: `scaleX(${1 + (100 - progressPercent)/300}) scaleY(1)` 
                          }" 
-                         viewBox="0 0 100 200" xmlns="http://www.w3.org/2000/svg">
-                        <!-- 头 -->
-                        <circle cx="50" cy="25" r="13" fill="#cbd5e1" />
-                        <!-- 圆润身体 (O型) -->
-                        <path d="M30 50 Q15 90 30 130 L35 180 L45 180 L48 120 L52 120 L55 180 L65 180 L70 130 Q85 90 70 50 Z" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1"/>
+                         viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="fatSkin" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#e2e8f0;stop-opacity:0.95" />
+                                <stop offset="50%" style="stop-color:#f1f5f9;stop-opacity:0.95" />
+                                <stop offset="100%" style="stop-color:#e2e8f0;stop-opacity:0.95" />
+                            </linearGradient>
+                        </defs>
+                        <path d="M100 28 C 116 28, 122 45, 122 55 L 155 65 C 165 68, 170 75, 168 95 L 165 135 C 163 145, 155 145, 150 135 L 145 105 L 145 150 C 155 180, 155 220, 145 250 L 145 350 L 115 350 L 110 260 L 90 260 L 85 350 L 55 350 L 55 250 C 45 220, 45 180, 55 150 L 55 105 L 50 135 C 45 145, 37 145, 35 135 L 32 95 C 30 75, 35 68, 45 65 L 78 55 C 78 45, 84 28, 100 28 Z" fill="url(#fatSkin)" stroke="#cbd5e1" stroke-width="1" />
+                        <path d="M80 150 Q 100 170, 120 150" fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.5" />
                     </svg>
                 </div>
 
-                <!-- 数据标签 -->
-                <div class="mt-6 text-center z-10">
-                    <p class="text-3xl font-bold text-slate-800">{{ currentWeight }} <span class="text-sm text-slate-500">kg</span></p>
-                    <p class="text-sm text-slate-500 mt-1">
-                        已减 <span class="text-teal-600 font-bold">{{ lostJin }}</span> 斤 / 
-                        还剩 <span class="text-rose-500 font-bold">{{ remainingJin }}</span> 斤
-                    </p>
+                <!-- 智能预测胶囊 (新增) -->
+                <div class="mt-4 w-full px-4 z-20">
+                    <div v-if="prediction.status === 'normal'" class="bg-gradient-to-r from-indigo-500 to-purple-500 text-white p-3 rounded-xl shadow-lg animate-pulse-soft flex justify-between items-center">
+                        <div class="text-left">
+                            <p class="text-[10px] opacity-80 uppercase tracking-wide">预计达标</p>
+                            <p class="font-bold text-sm">{{ prediction.date }}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-2xl font-bold leading-none">{{ prediction.days }}<span class="text-xs font-normal opacity-80 ml-1">天后</span></p>
+                        </div>
+                    </div>
+                    <div v-else-if="prediction.status === 'done'" class="bg-teal-500 text-white p-3 rounded-xl shadow-lg text-center">
+                        <p class="font-bold"><i class="fas fa-trophy mr-2"></i>已达成目标！</p>
+                    </div>
+                    <div v-else class="bg-slate-100 text-slate-500 p-3 rounded-xl text-center text-xs">
+                        <i class="fas fa-calculator mr-1"></i> {{ prediction.msg }}
+                    </div>
+                </div>
+
+                <!-- 底部数据 -->
+                <div class="mt-4 w-full grid grid-cols-2 gap-4 text-center z-20">
+                    <div class="bg-white/60 backdrop-blur p-3 rounded-xl border border-slate-100 shadow-sm">
+                        <p class="text-xs text-slate-400 mb-1">已减掉</p>
+                        <p class="text-lg font-bold text-teal-600">{{ lostJin }} <span class="text-xs text-slate-500">斤</span></p>
+                    </div>
+                    <div class="bg-white/60 backdrop-blur p-3 rounded-xl border border-slate-100 shadow-sm">
+                        <p class="text-xs text-slate-400 mb-1">还需减</p>
+                        <p class="text-lg font-bold text-rose-500">{{ remainingJin }} <span class="text-xs text-slate-500">斤</span></p>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- 右侧：趋势图表 (占4列) -->
-        <div class="lg:col-span-4 flex flex-col">
-            <div class="glass-panel rounded-2xl p-4 h-full flex flex-col">
-                <div class="flex justify-between items-center mb-4 px-2">
+        <!-- 右侧：图表 (LG: 4/12) -->
+        <div class="lg:col-span-4 order-3">
+            <div class="glass-panel rounded-2xl p-4 h-full flex flex-col min-h-[350px]">
+                <div class="flex justify-between items-center mb-2 px-1">
                     <h3 class="font-bold text-slate-800">趋势分析</h3>
-                    <span class="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded">双指/滚轮缩放</span>
+                    <span class="text-[10px] text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
+                        <i class="fas fa-search-plus mr-1"></i>可缩放
+                    </span>
                 </div>
-                
-                <!-- 图表容器 -->
-                <div v-if="records.length > 0" id="mainChart" class="w-full flex-1 min-h-[300px] rounded-xl"></div>
-                
-                <!-- 空状态 -->
-                <div v-else class="flex-1 flex flex-col items-center justify-center text-slate-300 min-h-[300px] border-2 border-dashed border-slate-200 rounded-xl">
-                    <i class="fas fa-chart-area text-4xl mb-2"></i>
-                    <p class="text-sm">暂无数据，请先打卡</p>
+                <div v-if="records.length > 0" id="mainChart" class="w-full flex-1 rounded-xl overflow-hidden"></div>
+                <div v-else class="flex-1 flex flex-col items-center justify-center text-slate-300 border-2 border-dashed border-slate-200 rounded-xl">
+                    <i class="fas fa-chart-line text-4xl mb-2 opacity-50"></i>
+                    <p class="text-sm">添加数据后生成图表</p>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- 底部：详细列表 -->
-    <section class="mt-6 glass-panel rounded-2xl p-6 overflow-hidden">
-        <h3 class="text-lg font-bold text-slate-800 mb-4">详细记录</h3>
-        <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
-            <table class="w-full text-left border-collapse">
-                <thead class="sticky top-0 bg-white/95 backdrop-blur z-10 shadow-sm">
-                    <tr class="text-xs text-slate-400">
-                        <th class="py-3 pl-4">日期</th>
-                        <th class="py-3">体重</th>
-                        <th class="py-3">变化</th>
-                        <th class="py-3">花费</th>
-                        <th class="py-3 text-right pr-4">操作</th>
+    <section class="mt-6 glass-panel rounded-2xl overflow-hidden">
+        <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            <h3 class="font-bold text-slate-800">详细记录</h3>
+            <div class="text-xs text-slate-500">共 {{ records.length }} 条</div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse min-w-[350px]">
+                <thead>
+                    <tr class="text-xs text-slate-400 bg-slate-50">
+                        <th class="py-3 pl-4 font-medium">日期</th>
+                        <th class="py-3 font-medium">体重</th>
+                        <th class="py-3 font-medium">变化</th>
+                        <th class="py-3 font-medium">花费</th>
+                        <th class="py-3 text-right pr-4 font-medium">操作</th>
                     </tr>
                 </thead>
                 <tbody class="text-sm text-slate-600">
-                    <tr v-for="(record, index) in sortedRecords" :key="index" class="border-b border-slate-50 hover:bg-slate-50">
-                        <td class="py-3 pl-4 font-mono">{{ record.date }}</td>
+                    <tr v-for="(record, index) in sortedRecords" :key="index" class="border-b border-slate-50 hover:bg-slate-50 transition">
+                        <td class="py-3 pl-4 font-mono text-xs md:text-sm">{{ record.date.substring(5) }}</td>
                         <td class="py-3 font-bold">{{ record.weight }}</td>
                         <td class="py-3">
-                            <span :class="getChangeClass(index)">{{ getChange(index) }}</span>
+                            <span :class="getChangeClass(index)" class="text-xs md:text-sm">{{ getChange(index) }}</span>
                         </td>
-                        <td class="py-3 text-slate-400">¥{{ record.cost }}</td>
+                        <td class="py-3 text-slate-400 text-xs">¥{{ record.cost }}</td>
                         <td class="py-3 text-right pr-4">
-                            <button @click="deleteRecord(record.id)" class="text-rose-300 hover:text-rose-500 transition">
-                                <i class="fas fa-times-circle"></i>
+                            <button @click="deleteRecord(record.id)" class="text-slate-300 hover:text-rose-500 p-2">
+                                <i class="fas fa-times"></i>
                             </button>
                         </td>
                     </tr>
@@ -247,6 +282,7 @@ const { createApp } = Vue;
 const app = createApp({
     data() {
         return {
+            showSettings: true,
             settings: { initialWeight: 80, targetWeight: 65 },
             newRecord: { date: new Date().toISOString().split('T')[0], weight: '', cost: '' },
             records: [],
@@ -268,21 +304,51 @@ const app = createApp({
             let rem = (this.currentWeight - this.settings.targetWeight) * 2;
             return rem > 0 ? rem.toFixed(1) : 0;
         },
-        totalCost() { return this.records.reduce((sum, r) => sum + (r.cost || 0), 0); },
-        costPerJin() {
-            const lost = parseFloat(this.lostJin);
-            return (lost > 0) ? (this.totalCost / lost).toFixed(1) : "0.0";
-        },
         progressPercent() {
             const totalToLose = this.settings.initialWeight - this.settings.targetWeight;
             const alreadyLost = this.settings.initialWeight - this.currentWeight;
             if (totalToLose <= 0) return 100;
             let pct = (alreadyLost / totalToLose) * 100;
             return Math.min(Math.max(pct, 0), 100).toFixed(1);
+        },
+        // 核心预测逻辑
+        prediction() {
+            const recs = this.timelineRecords;
+            if (this.currentWeight <= this.settings.targetWeight) {
+                return { status: 'done' };
+            }
+            if (recs.length < 2) {
+                return { status: 'waiting', msg: '再记录一天以预测' };
+            }
+            
+            // 计算总天数差和总减重差
+            const first = recs[0];
+            const last = recs[recs.length - 1];
+            const dayDiff = (new Date(last.date) - new Date(first.date)) / (1000 * 3600 * 24);
+            const weightDiff = first.weight - last.weight; // 正数代表减重了
+            
+            if (dayDiff < 1) return { status: 'waiting', msg: '需更多时间跨度' };
+            if (weightDiff <= 0) return { status: 'waiting', msg: '当前呈上升趋势，加油调整' };
+            
+            // 平均每天减多少
+            const dailyRate = weightDiff / dayDiff;
+            const remainingWeight = last.weight - this.settings.targetWeight;
+            const daysLeft = Math.ceil(remainingWeight / dailyRate);
+            
+            // 计算日期
+            const targetDate = new Date();
+            targetDate.setDate(targetDate.getDate() + daysLeft);
+            const dateStr = `${targetDate.getFullYear()}-${(targetDate.getMonth()+1).toString().padStart(2,'0')}-${targetDate.getDate().toString().padStart(2,'0')}`;
+            
+            // 异常处理：如果预测要超过3年，显示太久
+            if (daysLeft > 1000) return { status: 'waiting', msg: '预测时间过长，请加大力度' };
+
+            return { status: 'normal', days: daysLeft, date: dateStr };
         }
     },
     mounted() {
         this.loadData();
+        if(window.innerWidth < 768) this.showSettings = false;
         window.addEventListener('resize', () => {
             this.chartInstance && this.chartInstance.resize();
         });
@@ -290,7 +356,8 @@ const app = createApp({
     methods: {
         saveSettings() {
             this.saveData();
-            alert('🎯 目标已更新！图表和模型已重置。');
+            this.showSettings = false;
+            alert('设定已保存');
         },
         addRecord() {
             if (!this.newRecord.weight || !this.newRecord.date) return;
@@ -305,6 +372,9 @@ const app = createApp({
             }
             this.saveData();
             this.newRecord.cost = '';
+            setTimeout(() => {
+                document.getElementById('mainChart')?.scrollIntoView({behavior: 'smooth', block: 'center'});
+            }, 300);
         },
         deleteRecord(id) {
             if(confirm('删除此条记录？')) {
@@ -323,20 +393,15 @@ const app = createApp({
             const prev = this.sortedRecords[index + 1];
             let diff = prev ? (prev.weight - current.weight) * 2 : (this.settings.initialWeight - current.weight) * 2;
             if (diff === 0) return '-';
-            return (diff > 0 ? '↓ ' : '↑ ') + Math.abs(diff).toFixed(1);
+            return (diff > 0 ? '↓' : '↑') + Math.abs(diff).toFixed(1);
         },
         getChangeClass(index) {
-            const val = parseFloat(this.getChange(index).replace(/[↓↑ ]/g, ''));
             const isDown = this.getChange(index).includes('↓');
-            if (isNaN(val) || val === 0) return 'text-slate-400';
             return isDown ? 'text-teal-500 font-bold' : 'text-rose-500 font-bold';
         },
         saveData() {
             localStorage.setItem('weightTrackerData', JSON.stringify({ settings: this.settings, records: this.records }));
-            // 使用 nextTick 确保 DOM 更新后再渲染图表
-            this.$nextTick(() => {
-                this.initChart();
-            });
+            this.$nextTick(() => { this.initChart(); });
         },
         loadData() {
             try {
@@ -347,55 +412,53 @@ const app = createApp({
                     this.records = parsed.records || [];
                 }
             } catch (e) {}
-            this.$nextTick(() => {
-                this.initChart();
-            });
+            this.$nextTick(() => { this.initChart(); });
         },
         initChart() {
-            // 如果没有数据，不渲染图表，避免报错
             if (this.records.length === 0) {
-                if(this.chartInstance) {
-                    this.chartInstance.dispose();
-                    this.chartInstance = null;
-                }
+                if(this.chartInstance) { this.chartInstance.dispose(); this.chartInstance = null; }
                 return;
             }
-
             const chartDom = document.getElementById('mainChart');
-            if (!chartDom) return; // 防止DOM未找到
-
-            if (!this.chartInstance) {
-                this.chartInstance = echarts.init(chartDom);
-            }
+            if (!chartDom) return;
+            if (!this.chartInstance) this.chartInstance = echarts.init(chartDom);
 
             const data = this.timelineRecords;
-            const dates = data.map(r => r.date);
+            const dates = data.map(r => r.date.substring(5)); 
             const weights = data.map(r => r.weight);
             
             const option = {
-                tooltip: { trigger: 'axis' },
-                grid: { left: '10%', right: '10%', bottom: '10%', top: '15%' },
-                xAxis: { type: 'category', data: dates, boundaryGap: false },
+                tooltip: { trigger: 'axis', confine: true },
+                grid: { left: '12%', right: '5%', bottom: '20%', top: '10%' },
+                dataZoom: [
+                    { type: 'inside', start: 0, end: 100 },
+                    { type: 'slider', bottom: 0, height: 20, handleSize: '80%', borderColor: 'transparent' }
+                ],
+                xAxis: { type: 'category', data: dates, boundaryGap: false, axisLine: { lineStyle: { color: '#cbd5e1' } } },
                 yAxis: { 
                     type: 'value', 
-                    scale: true, // 不从0开始
-                    splitLine: { lineStyle: { type: 'dashed' } }
+                    scale: true, 
+                    splitLine: { lineStyle: { type: 'dashed', color: '#f1f5f9' } },
+                    axisLabel: { color: '#64748b' }
                 },
                 series: [{
                     name: '体重',
                     type: 'line',
                     smooth: true,
+                    symbol: 'circle',
+                    symbolSize: 6,
                     data: weights,
                     itemStyle: { color: '#6366f1' },
                     areaStyle: {
                         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                            { offset: 0, color: 'rgba(99, 102, 241, 0.4)' },
+                            { offset: 0, color: 'rgba(99, 102, 241, 0.3)' },
                             { offset: 1, color: 'rgba(99, 102, 241, 0.0)' }
                         ])
                     },
                     markLine: {
                         data: [{ yAxis: this.settings.targetWeight, name: '目标' }],
-                        lineStyle: { color: '#14b8a6', type: 'dashed' }
+                        lineStyle: { color: '#14b8a6', type: 'dashed' },
+                        label: { show: false }
                     }
                 }]
             };
@@ -416,34 +479,23 @@ const app = createApp({
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array', cellDates: true });
                     const jsonSheet = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                    
                     let count = 0;
                     jsonSheet.forEach(row => {
-                        // 简单模糊匹配
-                        let d = row['日期'] || row['date'] || row['Date'];
-                        let w = row['体重'] || row['weight'] || row['Weight'];
-                        let c = row['花费'] || row['cost'] || row['Cost'] || 0;
-                        
+                        let d = row['日期'] || row['date'];
+                        let w = row['体重'] || row['weight'];
+                        let c = row['花费'] || row['cost'] || 0;
                         if (d && w) {
-                            let dateStr = (d instanceof Date) ? 
-                                new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().split('T')[0] : 
-                                new Date(d).toISOString().split('T')[0];
-                            
+                            let dateStr = (d instanceof Date) ? new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().split('T')[0] : new Date(d).toISOString().split('T')[0];
                             this.records.push({ id: Date.now() + Math.random(), date: dateStr, weight: parseFloat(w), cost: parseFloat(c) });
                             count++;
                         }
                     });
-                    
-                    // 去重
                     const map = new Map();
                     this.records.forEach(r => map.set(r.date, r));
                     this.records = Array.from(map.values());
-                    
                     this.saveData();
-                    alert(`成功导入 ${count} 条数据`);
-                } catch (err) {
-                    alert('导入失败，请检查格式');
-                }
+                    alert(`导入 ${count} 条数据`);
+                } catch (err) { alert('导入失败'); }
             };
             reader.readAsArrayBuffer(file);
             event.target.value = '';
