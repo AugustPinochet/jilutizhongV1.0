@@ -1,18 +1,14 @@
-这是一个集成了 **Excel 导入功能** 的最终版本。
+抱歉，我理解了。您希望保留 **Excel 导入** 和 **自动同步** 的强大功能，同时**恢复配置面板**，以便您可以随时修改 Token、ID 或体重目标，而不是写死在代码里。
 
-### ✨ 新增功能说明
-1.  **一键导入 Excel**：支持 `.xlsx` 或 `.csv` 文件。
-2.  **智能合并策略**：
-    *   如果 Excel 里的日期在现有记录中**已存在** -> **覆盖**该日期的体重/花费（以 Excel 为准）。
-    *   如果 Excel 里的日期**不存在** -> **新增**这条记录。
-3.  **自动云同步**：导入完成后，程序会**立即自动**将最新数据上传覆盖到 GitHub Gist，无需手动保存。
-
-### 📋 Excel 格式要求
-第一行表头包含：`日期` (或 Date)、`体重` (或 Weight)。可选：`花费`。
+这是**终极完整版**：
+1.  ✅ **Excel 一键导入**（支持 .xlsx/.csv，自动合并数据）。
+2.  ✅ **配置面板回归**（点击右上角 ⚙️ 设置 Token、ID、目标体重）。
+3.  ✅ **自动云同步**（导入或修改后自动保存到 GitHub）。
+4.  ✅ **默认预填**（为了方便您，我将您刚才提供的 Key 设为了默认值，但您随时可以在页面上修改）。
 
 ---
 
-### 🚀 完整代码 (复制保存为 .html)
+### 💎 终极完整版代码
 
 ```html
 <!DOCTYPE html>
@@ -20,11 +16,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>身材吃豆人 (Excel增强版)</title>
+    <title>身材吃豆人 (全功能版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-    <!-- 引入 Excel 解析库 SheetJS -->
+    <!-- Excel 解析库 -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
@@ -40,7 +36,10 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         }
 
-        /* 吃豆人动画 */
+        /* 动画相关 */
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+
         .pac-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; max-width: 320px; margin: 0 auto; }
         .pac-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border-radius: 4px; }
         .dot { width: 6px; height: 6px; background-color: #475569; border-radius: 50%; }
@@ -58,7 +57,6 @@
         }
         .input-dark:focus { border-color: #6366f1; outline: none; box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2); }
         
-        /* 滚动条美化 */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #1e293b; }
         ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
@@ -81,29 +79,59 @@
                 <i class="fas fa-ghost mr-2"></i>身材吃豆人
             </h1>
             <p class="text-xs text-slate-500 mt-1">
-                <i class="fab fa-github"></i> 云端同步 + Excel 导入
+                <i class="fab fa-github"></i> 云同步 + Excel导入
             </p>
         </div>
         <div class="flex gap-2">
-            <!-- 隐藏的文件输入框 -->
+            <!-- Excel 导入按钮 -->
             <input type="file" ref="fileInput" @change="handleExcelUpload" accept=".xlsx, .xls, .csv" class="hidden">
-            
             <button @click="$refs.fileInput.click()" :disabled="loading" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-lg shadow-emerald-900/20">
-                <i class="fas fa-file-excel"></i> 导入Excel
+                <i class="fas fa-file-excel"></i> <span class="hidden sm:inline">导入Excel</span>
             </button>
 
-            <button @click="pullData" class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition" title="强制刷新">
-                <i class="fas fa-sync-alt text-slate-400" :class="{'fa-spin': loading}"></i>
+            <!-- 设置按钮 -->
+            <button @click="showConfig = !showConfig" class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition" :class="{'text-indigo-400': showConfig}">
+                <i class="fas fa-cog"></i>
             </button>
         </div>
     </header>
+
+    <!-- 配置面板 (可折叠) -->
+    <transition name="fade">
+        <div v-if="showConfig" class="glass p-6 rounded-2xl mb-6 border-l-4 border-indigo-500">
+            <h3 class="font-bold text-lg mb-4 flex items-center gap-2 text-indigo-400">
+                <i class="fas fa-sliders-h"></i> 系统设置
+            </h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">GitHub Token</label>
+                    <input type="password" v-model="config.token" class="w-full input-dark rounded px-3 py-2 text-sm font-mono text-slate-300">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Gist ID</label>
+                    <input type="text" v-model="config.gistId" class="w-full input-dark rounded px-3 py-2 text-sm font-mono text-slate-300">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label class="text-xs text-slate-400">初始体重</label><input type="number" v-model.number="config.start" class="w-full input-dark rounded px-3 py-2"></div>
+                    <div><label class="text-xs text-slate-400">目标体重</label><input type="number" v-model.number="config.target" class="w-full input-dark rounded px-3 py-2"></div>
+                </div>
+                <div class="flex justify-end gap-3 mt-2">
+                    <button @click="pullData" :disabled="loading" class="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-sm font-bold">
+                        <i class="fas fa-download mr-1"></i> 仅拉取
+                    </button>
+                    <button @click="saveConfig" class="px-6 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold shadow-lg shadow-indigo-500/30">
+                        保存并连接
+                    </button>
+                </div>
+            </div>
+        </div>
+    </transition>
 
     <!-- 主控台 -->
     <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
         
         <!-- 左侧：游戏化展示 -->
         <div class="md:col-span-5 glass rounded-2xl p-6 flex flex-col items-center relative overflow-hidden">
-            <!-- 背景装饰 -->
             <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
             
             <div class="text-center mb-6">
@@ -156,7 +184,8 @@
             <div class="glass rounded-2xl p-4 h-64 relative">
                 <div id="chart" class="w-full h-full"></div>
                 <div v-if="records.length === 0" class="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">
-                    等待数据同步...
+                    <span v-if="loading">数据加载中...</span>
+                    <span v-else>暂无数据，请添加或导入</span>
                 </div>
             </div>
 
@@ -201,9 +230,10 @@ createApp({
     data() {
         return {
             loading: false,
+            showConfig: false,
             msg: '',
             msgType: 'info',
-            // --- 您的私人配置 ---
+            // 默认配置 (如果本地没有缓存，则使用这些默认值)
             config: {
                 token: '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', 
                 gistId: 'bad89a736eb73d5165930e216d568ce4',       
@@ -248,7 +278,21 @@ createApp({
         }
     },
     mounted() {
-        this.pullData();
+        // 1. 尝试读取本地存储的配置
+        const saved = localStorage.getItem('pacman_github_conf');
+        if(saved) {
+            const parsed = JSON.parse(saved);
+            // 合并配置，防止缺少字段
+            this.config = { ...this.config, ...parsed };
+        }
+        
+        // 2. 自动拉取数据
+        if(this.config.token && this.config.gistId) {
+            this.pullData();
+        } else {
+            this.showConfig = true; // 如果没配置，自动展开设置面板
+        }
+
         this.$nextTick(() => this.initChart());
         window.addEventListener('resize', () => this.chart && this.chart.resize());
     },
@@ -257,6 +301,13 @@ createApp({
             this.msg = text;
             this.msgType = type;
             setTimeout(() => this.msg = '', 3000);
+        },
+
+        saveConfig() {
+            localStorage.setItem('pacman_github_conf', JSON.stringify(this.config));
+            this.showConfig = false;
+            this.notify('配置已保存');
+            this.pullData(); // 保存后立即尝试连接
         },
 
         // --- Excel 导入逻辑 ---
@@ -275,11 +326,10 @@ createApp({
                     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                     const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
 
-                    // 寻找表头索引
+                    // 寻找表头
                     let dateIdx = -1, weightIdx = -1, costIdx = -1;
                     let headerRowIndex = 0;
 
-                    // 简单的表头查找逻辑
                     for(let i=0; i<Math.min(5, rows.length); i++) {
                         const rowStr = rows[i].join(' ').toLowerCase();
                         if(rowStr.includes('date') || rowStr.includes('日期')) {
@@ -295,16 +345,16 @@ createApp({
                     }
 
                     if(dateIdx === -1 || weightIdx === -1) {
-                        throw new Error('未找到"日期"或"体重"列，请检查表头');
+                        throw new Error('未找到"日期"或"体重"列');
                     }
 
                     let importCount = 0;
                     const newMap = new Map();
                     
-                    // 1. 先把现有记录放入 Map (Key=Date)
+                    // 1. 现有数据入库
                     this.records.forEach(r => newMap.set(r.date, r));
 
-                    // 2. 遍历 Excel 数据并覆盖/新增
+                    // 2. Excel 数据覆盖
                     for(let i = headerRowIndex + 1; i < rows.length; i++) {
                         const row = rows[i];
                         if(!row[dateIdx]) continue;
@@ -318,41 +368,34 @@ createApp({
                                 weight: weightVal,
                                 cost: costIdx !== -1 ? (parseFloat(row[costIdx]) || 0) : 0
                             };
-                            newMap.set(dateStr, record); // 核心：Map会自动覆盖相同Key(日期)的数据
+                            newMap.set(dateStr, record);
                             importCount++;
                         }
                     }
 
-                    // 3. 转回数组
+                    // 3. 更新并同步
                     this.records = Array.from(newMap.values());
-                    
-                    this.notify(`解析成功！更新了 ${importCount} 条数据，正在上传...`);
+                    this.notify(`成功导入 ${importCount} 条数据`);
                     this.initChart();
-                    
-                    // 4. 自动上传到 GitHub
-                    this.pushData();
+                    this.pushData(); // 自动上传
 
                 } catch (err) {
                     console.error(err);
                     this.notify(err.message, 'error');
                     this.loading = false;
                 } finally {
-                    // 清空 input 允许重复上传同一文件
                     event.target.value = '';
                 }
             };
             reader.readAsBinaryString(file);
         },
 
-        // Excel 日期解析黑魔法
         parseExcelDate(val) {
             if (!val) return null;
-            // 如果是 Excel 序列号 (例如 45230)
             if (typeof val === 'number' && val > 20000) {
                 const date = new Date((val - 25569) * 86400 * 1000);
                 return date.toISOString().split('T')[0];
             }
-            // 如果是字符串
             const date = new Date(String(val).replace(/\//g, '-').replace(/\./g, '-'));
             if (isNaN(date.getTime())) return null;
             return date.toISOString().split('T')[0];
@@ -360,13 +403,14 @@ createApp({
 
         // --- GitHub Gist API ---
         async pullData() {
+            if(!this.config.token || !this.config.gistId) return;
             this.loading = true;
             try {
                 const res = await fetch(`https://api.github.com/gists/${this.config.gistId}`, {
                     headers: { 'Authorization': `token ${this.config.token}` },
                     cache: 'no-store'
                 });
-                if(!res.ok) throw new Error('连接失败');
+                if(!res.ok) throw new Error('连接失败: ' + res.status);
                 const data = await res.json();
                 const file = data.files['data.json'];
                 this.records = file ? JSON.parse(file.content) : [];
@@ -380,6 +424,7 @@ createApp({
         },
 
         async pushData() {
+            if(!this.config.token || !this.config.gistId) return;
             this.loading = true;
             try {
                 const payload = { files: { "data.json": { content: JSON.stringify(this.records, null, 2) } } };
@@ -420,7 +465,8 @@ createApp({
 
         initChart() {
             const dom = document.getElementById('chart');
-            if(!dom || !this.chart && !(this.chart = echarts.init(dom))) return;
+            if(!dom) return;
+            if(!this.chart) this.chart = echarts.init(dom);
             const data = this.timelineRecords;
             this.chart.setOption({
                 grid: { top: 20, right: 20, bottom: 20, left: 40, containLabel: true },
