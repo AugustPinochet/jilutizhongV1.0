@@ -3,36 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>减重与成本追踪看板 Pro</title>
-    <!-- 引入 Tailwind CSS -->
+    <title>减重与成本追踪看板 (Excel版)</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 Vue 3 -->
+    <!-- Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <!-- 引入 ECharts -->
+    <!-- ECharts -->
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-    <!-- 引入图标库 -->
+    <!-- SheetJS (用于读取Excel) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <!-- FontAwesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
         body { font-family: 'Noto Sans SC', sans-serif; background-color: #f3f4f6; }
-        
-        /* 防止Vue加载前显示{{}}乱码 */
         [v-cloak] { display: none !important; }
-
         .glass-panel {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
             box-shadow: 0 8px 32px rgba(31, 38, 135, 0.07);
         }
-        .input-field {
-            transition: all 0.3s;
-        }
-        .input-field:focus {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
-        }
+        .input-field { transition: all 0.3s; }
+        .input-field:focus { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2); }
     </style>
 </head>
 <body class="text-slate-700">
@@ -40,20 +34,20 @@
 <div id="app" v-cloak class="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
     
     <!-- 顶部标题 -->
-    <header class="mb-8 flex flex-col md:flex-row justify-between items-center">
+    <header class="mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
             <h1 class="text-3xl font-bold text-slate-800 bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-teal-500">
                 <i class="fas fa-chart-line mr-2 text-indigo-600"></i>身材投资回报率追踪
             </h1>
-            <p class="text-slate-500 mt-1 text-sm">记录每一滴汗水与金钱的转化率</p>
+            <p class="text-slate-500 mt-1 text-sm">支持 Excel 导入导出</p>
         </div>
-        <div class="mt-4 md:mt-0 flex gap-2">
-            <button @click="exportData" class="px-4 py-2 bg-white text-slate-600 rounded-lg shadow hover:bg-slate-50 text-sm transition">
-                <i class="fas fa-download mr-1"></i> 导出
+        <div class="flex flex-wrap gap-2 justify-center md:justify-end">
+            <button @click="downloadTemplate" class="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-lg shadow hover:bg-emerald-100 text-sm transition border border-emerald-200">
+                <i class="fas fa-file-excel mr-1"></i> 下载模板
             </button>
-            <label class="px-4 py-2 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 text-sm transition cursor-pointer">
-                <i class="fas fa-upload mr-1"></i> 导入
-                <input type="file" @change="importData" class="hidden" accept=".json">
+            <label class="px-4 py-2 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 text-sm transition cursor-pointer flex items-center">
+                <i class="fas fa-file-import mr-1"></i> 导入 Excel
+                <input type="file" @change="importExcel" class="hidden" accept=".xlsx, .xls">
             </label>
             <button @click="resetData" class="px-4 py-2 bg-rose-100 text-rose-600 rounded-lg shadow hover:bg-rose-200 text-sm transition">
                 <i class="fas fa-trash mr-1"></i> 重置
@@ -251,17 +245,14 @@ const app = createApp({
         }
     },
     computed: {
-        // 按日期倒序排列用于列表显示
         sortedRecords() {
             return [...this.records].sort((a, b) => new Date(b.date) - new Date(a.date));
         },
-        // 按日期正序排列用于计算和图表
         timelineRecords() {
             return [...this.records].sort((a, b) => new Date(a.date) - new Date(b.date));
         },
         currentWeight() {
             if (this.records.length === 0) return this.settings.initialWeight;
-            // 获取最新日期记录的体重
             return this.timelineRecords[this.timelineRecords.length - 1].weight;
         },
         targetLossJin() {
@@ -290,18 +281,13 @@ const app = createApp({
             let pct = (alreadyLost / totalToLose) * 100;
             return Math.min(Math.max(pct, 0), 100).toFixed(1);
         },
-        // 预测逻辑
         avgLossRate() {
             if (this.timelineRecords.length < 2) return 0;
             const first = this.timelineRecords[0];
             const last = this.timelineRecords[this.timelineRecords.length - 1];
-            
             const daysDiff = (new Date(last.date) - new Date(first.date)) / (1000 * 3600 * 24);
             if (daysDiff === 0) return 0;
-
-            // 计算区间内的减重速度
             const weightDiffJin = (first.weight - last.weight) * 2;
-            
             return weightDiffJin > 0 ? (weightDiffJin / daysDiff).toFixed(2) : 0;
         },
         daysRemaining() {
@@ -328,31 +314,22 @@ const app = createApp({
     methods: {
         addRecord() {
             if (!this.newRecord.weight || !this.newRecord.date) return;
-            
-            // 检查是否已存在当天记录，存在则覆盖
             const existingIndex = this.records.findIndex(r => r.date === this.newRecord.date);
-            
             const record = {
                 id: Date.now(),
                 date: this.newRecord.date,
                 weight: this.newRecord.weight,
                 cost: this.newRecord.cost || 0
             };
-
             if (existingIndex !== -1) {
                 if(confirm('检测到该日期已有记录，是否覆盖？')) {
                     this.records[existingIndex] = record;
-                } else {
-                    return;
-                }
+                } else { return; }
             } else {
                 this.records.push(record);
             }
-
             this.saveData();
             this.updateChart();
-            
-            // 重置花费，保留日期为今天
             this.newRecord.cost = '';
         },
         deleteRecord(id) {
@@ -372,13 +349,10 @@ const app = createApp({
         getChange(index) {
             const current = this.sortedRecords[index];
             const prev = this.sortedRecords[index + 1];
-            
             if (!prev) {
-                // 如果没有前一天记录，对比初始体重
                 const diff = (this.settings.initialWeight - current.weight) * 2;
                 return (diff > 0 ? '↓ ' : '↑ ') + Math.abs(diff).toFixed(1);
             }
-            
             const diff = (prev.weight - current.weight) * 2;
             if (diff === 0) return '-';
             return (diff > 0 ? '↓ ' : '↑ ') + Math.abs(diff).toFixed(1);
@@ -387,18 +361,15 @@ const app = createApp({
             const current = this.sortedRecords[index];
             const prev = this.sortedRecords[index + 1];
             let diff;
-            
             if (!prev) diff = (this.settings.initialWeight - current.weight);
             else diff = (prev.weight - current.weight);
-
             return diff > 0 ? 'text-teal-500 font-bold' : (diff < 0 ? 'text-rose-500 font-bold' : 'text-slate-400');
         },
         saveData() {
-            const data = {
+            localStorage.setItem('weightTrackerData', JSON.stringify({
                 settings: this.settings,
                 records: this.records
-            };
-            localStorage.setItem('weightTrackerData', JSON.stringify(data));
+            }));
             this.updateChart();
         },
         loadData() {
@@ -409,44 +380,100 @@ const app = createApp({
                     this.settings = parsed.settings || this.settings;
                     this.records = parsed.records || [];
                 }
-            } catch (e) {
-                console.error("读取数据失败", e);
-                // 防止崩溃
-                this.records = [];
-            }
+            } catch (e) { this.records = []; }
         },
-        exportData() {
-            const dataStr = JSON.stringify({settings: this.settings, records: this.records});
-            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-            const exportFileDefaultName = 'weight_data_' + new Date().toISOString().split('T')[0] + '.json';
-            const linkElement = document.createElement('a');
-            linkElement.setAttribute('href', dataUri);
-            linkElement.setAttribute('download', exportFileDefaultName);
-            linkElement.click();
-        },
-        importData(event) {
+        // Excel 导入逻辑
+        importExcel(event) {
             const file = event.target.files[0];
             if (!file) return;
+
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
-                    const parsed = JSON.parse(e.target.result);
-                    if (parsed.settings && parsed.records) {
-                        if(confirm('导入将覆盖当前所有数据，确定吗？')) {
-                            this.settings = parsed.settings;
-                            this.records = parsed.records;
-                            this.saveData();
-                            alert('导入成功！');
-                        }
-                    } else {
-                        alert('文件格式不正确');
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true }); // cellDates: true 自动处理日期
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonSheet = XLSX.utils.sheet_to_json(worksheet);
+
+                    if (jsonSheet.length === 0) {
+                        alert('Excel 表格似乎是空的');
+                        return;
                     }
+
+                    const newRecords = [];
+                    let successCount = 0;
+
+                    jsonSheet.forEach(row => {
+                        // 模糊匹配列名 (支持中文、英文、大小写)
+                        let dateVal, weightVal, costVal;
+                        
+                        for (let key in row) {
+                            const k = key.toLowerCase().trim();
+                            if (k.includes('date') || k.includes('日期') || k.includes('时间')) dateVal = row[key];
+                            if (k.includes('weight') || k.includes('体重') || k.includes('kg')) weightVal = row[key];
+                            if (k.includes('cost') || k.includes('price') || k.includes('花费') || k.includes('金额')) costVal = row[key];
+                        }
+
+                        if (dateVal && weightVal) {
+                            // 格式化日期
+                            let finalDate;
+                            if (dateVal instanceof Date) {
+                                // 调整时区偏差
+                                const offset = dateVal.getTimezoneOffset() * 60000;
+                                finalDate = new Date(dateVal.getTime() - offset).toISOString().split('T')[0];
+                            } else {
+                                // 尝试解析字符串
+                                finalDate = new Date(dateVal).toISOString().split('T')[0];
+                            }
+
+                            if (finalDate && !isNaN(parseFloat(weightVal))) {
+                                newRecords.push({
+                                    id: Date.now() + Math.random(),
+                                    date: finalDate,
+                                    weight: parseFloat(weightVal),
+                                    cost: parseFloat(costVal) || 0
+                                });
+                                successCount++;
+                            }
+                        }
+                    });
+
+                    if (successCount > 0) {
+                        if (confirm(`解析成功！发现 ${successCount} 条有效记录。\n是否覆盖当前记录？(点击“取消”则追加)`)) {
+                            this.records = newRecords;
+                        } else {
+                            // 追加模式：去重
+                            const existingDates = new Set(this.records.map(r => r.date));
+                            newRecords.forEach(r => {
+                                if (!existingDates.has(r.date)) {
+                                    this.records.push(r);
+                                }
+                            });
+                        }
+                        this.saveData();
+                        alert(`成功导入 ${successCount} 条数据！`);
+                    } else {
+                        alert('未找到有效数据，请确保表头包含“日期”和“体重”');
+                    }
+
                 } catch (err) {
-                    alert('文件解析失败');
+                    console.error(err);
+                    alert('Excel 解析失败，请检查文件格式。');
                 }
             };
-            reader.readAsText(file);
-            event.target.value = '';
+            reader.readAsArrayBuffer(file);
+            event.target.value = ''; // 重置input
+        },
+        downloadTemplate() {
+            const ws = XLSX.utils.json_to_sheet([
+                { "日期": "2023-10-01", "体重": 75.5, "花费": 0 },
+                { "日期": "2023-10-02", "体重": 75.2, "花费": 30 },
+                { "日期": "2023-10-03", "体重": 74.8, "花费": 15 }
+            ]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "记录模板");
+            XLSX.writeFile(wb, "减重记录模板.xlsx");
         },
         initChart() {
             const chartDom = document.getElementById('mainChart');
@@ -455,18 +482,12 @@ const app = createApp({
         },
         updateChart() {
             if (!this.chartInstance) return;
-
             const data = this.timelineRecords;
             const dates = data.map(r => r.date);
             const weights = data.map(r => r.weight);
             const costs = data.map(r => r.cost);
-            
-            // 计算累计花费
             let accCost = 0;
-            const cumulativeCosts = costs.map(c => {
-                accCost += c;
-                return accCost;
-            });
+            const cumulativeCosts = costs.map(c => { accCost += c; return accCost; });
 
             const option = {
                 tooltip: {
@@ -485,79 +506,23 @@ const app = createApp({
                         return res;
                     }
                 },
-                legend: {
-                    data: ['体重', '目标', '累计花费'],
-                    bottom: 0
-                },
-                grid: {
-                    left: '3%',
-                    right: '4%',
-                    bottom: '10%',
-                    top: '10%',
-                    containLabel: true
-                },
-                xAxis: {
-                    type: 'category',
-                    boundaryGap: false,
-                    data: dates,
-                    axisLine: { lineStyle: { color: '#94a3b8' } }
-                },
+                legend: { data: ['体重', '目标', '累计花费'], bottom: 0 },
+                grid: { left: '3%', right: '4%', bottom: '10%', top: '10%', containLabel: true },
+                xAxis: { type: 'category', boundaryGap: false, data: dates, axisLine: { lineStyle: { color: '#94a3b8' } } },
                 yAxis: [
-                    {
-                        type: 'value',
-                        name: '体重 (KG)',
-                        min: (value) => Math.floor(Math.min(value.min, this.settings.targetWeight) - 1),
-                        position: 'left',
-                        axisLine: { show: true, lineStyle: { color: '#6366f1' } },
-                        splitLine: { lineStyle: { type: 'dashed', color: '#e2e8f0' } }
-                    },
-                    {
-                        type: 'value',
-                        name: '累计花费 (¥)',
-                        position: 'right',
-                        axisLine: { show: true, lineStyle: { color: '#f59e0b' } },
-                        splitLine: { show: false }
-                    }
+                    { type: 'value', name: '体重 (KG)', min: (value) => Math.floor(Math.min(value.min, this.settings.targetWeight) - 1), position: 'left', axisLine: { show: true, lineStyle: { color: '#6366f1' } }, splitLine: { lineStyle: { type: 'dashed', color: '#e2e8f0' } } },
+                    { type: 'value', name: '累计花费 (¥)', position: 'right', axisLine: { show: true, lineStyle: { color: '#f59e0b' } }, splitLine: { show: false } }
                 ],
                 series: [
-                    {
-                        name: '体重',
-                        type: 'line',
-                        smooth: true,
-                        data: weights,
-                        itemStyle: { color: '#6366f1' },
-                        areaStyle: {
-                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                { offset: 0, color: 'rgba(99, 102, 241, 0.3)' },
-                                { offset: 1, color: 'rgba(99, 102, 241, 0.05)' }
-                            ])
-                        },
-                        markLine: {
-                            data: [{ yAxis: this.settings.targetWeight, name: '目标' }],
-                            lineStyle: { color: '#14b8a6', type: 'dashed', width: 2 },
-                            label: { formatter: '目标 {c}kg' },
-                            symbol: ['none', 'none']
-                        }
-                    },
-                    {
-                        name: '累计花费',
-                        type: 'line',
-                        yAxisIndex: 1,
-                        smooth: true,
-                        showSymbol: false,
-                        data: cumulativeCosts,
-                        itemStyle: { color: '#f59e0b' },
-                        lineStyle: { width: 2, type: 'dotted' }
-                    }
+                    { name: '体重', type: 'line', smooth: true, data: weights, itemStyle: { color: '#6366f1' }, areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(99, 102, 241, 0.3)' }, { offset: 1, color: 'rgba(99, 102, 241, 0.05)' }]) }, markLine: { data: [{ yAxis: this.settings.targetWeight, name: '目标' }], lineStyle: { color: '#14b8a6', type: 'dashed', width: 2 }, label: { formatter: '目标 {c}kg' }, symbol: ['none', 'none'] } },
+                    { name: '累计花费', type: 'line', yAxisIndex: 1, smooth: true, showSymbol: false, data: cumulativeCosts, itemStyle: { color: '#f59e0b' }, lineStyle: { width: 2, type: 'dotted' } }
                 ]
             };
-
             this.chartInstance.setOption(option);
         }
     }
 });
 
-// 关键修复：挂载应用
 app.mount('#app');
 </script>
 </body>
