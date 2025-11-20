@@ -1,14 +1,15 @@
-抱歉，我理解了。您希望保留 **Excel 导入** 和 **自动同步** 的强大功能，同时**恢复配置面板**，以便您可以随时修改 Token、ID 或体重目标，而不是写死在代码里。
+这是一个焕然一新的**浅色清爽版**。
 
-这是**终极完整版**：
-1.  ✅ **Excel 一键导入**（支持 .xlsx/.csv，自动合并数据）。
-2.  ✅ **配置面板回归**（点击右上角 ⚙️ 设置 Token、ID、目标体重）。
-3.  ✅ **自动云同步**（导入或修改后自动保存到 GitHub）。
-4.  ✅ **默认预填**（为了方便您，我将您刚才提供的 Key 设为了默认值，但您随时可以在页面上修改）。
+### 🌟 核心升级点
+1.  **UI 视觉重构**：全线改为**浅色（Light Mode）**，采用白底、浅灰阴影和高对比度文字，视觉更加通透干净。
+2.  **数据结构升级**：
+    *   **旧结构**：JSON 文件里只存了一个数组 `[...]`。
+    *   **新结构**：JSON 文件现在会保存为 `{ "meta": { "start": 80, "target": 65 }, "records": [...] }`。
+    *   **自动迁移**：程序会自动识别旧版数据，并在下一次保存时自动升级为新结构，确保您的目标体重也能在不同设备间同步。
 
 ---
 
-### 💎 终极完整版代码
+### ☁️ 浅色·全功能同步版代码
 
 ```html
 <!DOCTYPE html>
@@ -16,50 +17,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>身材吃豆人 (全功能版)</title>
+    <title>身材吃豆人 (浅色云同步版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-    <!-- Excel 解析库 -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        /* 浅色主题基础 */
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background-color: #f8fafc; /* Slate-50 */
+            color: #334155; /* Slate-700 */
+        }
         [v-cloak] { display: none; }
         
-        /* 玻璃面板 */
+        /* 浅色毛玻璃 - 像磨砂玻璃 */
         .glass {
-            background: rgba(30, 41, 59, 0.7);
+            background: rgba(255, 255, 255, 0.75);
             backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 4px 20px rgba(148, 163, 184, 0.15);
         }
 
         /* 动画相关 */
         .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
 
+        /* 吃豆人网格 - 浅色适配 */
         .pac-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; max-width: 320px; margin: 0 auto; }
-        .pac-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border-radius: 4px; }
-        .dot { width: 6px; height: 6px; background-color: #475569; border-radius: 50%; }
+        .pac-cell { 
+            aspect-ratio: 1; display: flex; align-items: center; justify-content: center; 
+            background: rgba(0,0,0,0.03); /* 淡淡的灰色背景 */
+            border-radius: 6px; 
+        }
+        .dot { width: 6px; height: 6px; background-color: #cbd5e1; border-radius: 50%; }
         .pacman { 
-            width: 22px; height: 22px; background: #fbbf24; border-radius: 50%; 
+            width: 22px; height: 22px; background: #f59e0b; border-radius: 50%; 
             position: relative; z-index: 10;
-            box-shadow: 0 0 10px #fbbf24;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
             animation: chomp 0.3s infinite alternate;
         }
         @keyframes chomp { from { clip-path: polygon(100% 0%, 100% 100%, 50% 50%); } to { clip-path: polygon(100% 20%, 100% 80%, 50% 50%); } }
         
-        .input-dark {
-            background: #1e293b; border: 1px solid #334155; color: white;
+        /* 输入框 - 浅色适配 */
+        .input-light {
+            background: #ffffff; 
+            border: 1px solid #e2e8f0; 
+            color: #1e293b;
             transition: all 0.3s;
         }
-        .input-dark:focus { border-color: #6366f1; outline: none; box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2); }
+        .input-light:focus { 
+            border-color: #6366f1; 
+            outline: none; 
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); 
+        }
         
+        /* 滚动条 */
         ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
 <body>
@@ -67,60 +86,70 @@
 <div id="app" v-cloak class="min-h-screen p-4 max-w-4xl mx-auto pb-20">
     
     <!-- 顶部通知 -->
-    <div v-if="msg" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-xl text-sm font-bold flex items-center gap-2 transition-all duration-300"
-         :class="msgType === 'success' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'">
+    <div v-if="msg" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-xl text-sm font-bold flex items-center gap-2 transition-all duration-300"
+         :class="msgType === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'">
         <i class="fas" :class="msgType === 'success' ? 'fa-check' : 'fa-exclamation-circle'"></i> {{ msg }}
     </div>
 
     <!-- 头部 -->
     <header class="flex justify-between items-center mb-6">
         <div>
-            <h1 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">
-                <i class="fas fa-ghost mr-2"></i>身材吃豆人
+            <h1 class="text-2xl font-bold text-slate-800 tracking-tight">
+                <span class="text-amber-500 mr-2"><i class="fas fa-ghost"></i></span>身材吃豆人
             </h1>
-            <p class="text-xs text-slate-500 mt-1">
-                <i class="fab fa-github"></i> 云同步 + Excel导入
+            <p class="text-xs text-slate-400 mt-1 font-medium">
+                <i class="fab fa-github"></i> 数据与目标全云端同步
             </p>
         </div>
         <div class="flex gap-2">
-            <!-- Excel 导入按钮 -->
             <input type="file" ref="fileInput" @change="handleExcelUpload" accept=".xlsx, .xls, .csv" class="hidden">
-            <button @click="$refs.fileInput.click()" :disabled="loading" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-lg shadow-emerald-900/20">
-                <i class="fas fa-file-excel"></i> <span class="hidden sm:inline">导入Excel</span>
+            <button @click="$refs.fileInput.click()" :disabled="loading" class="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-sm">
+                <i class="fas fa-file-excel text-emerald-500"></i> <span class="hidden sm:inline">导入</span>
             </button>
 
-            <!-- 设置按钮 -->
-            <button @click="showConfig = !showConfig" class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition" :class="{'text-indigo-400': showConfig}">
-                <i class="fas fa-cog"></i>
+            <button @click="toggleConfig" class="w-10 h-10 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 flex items-center justify-center text-slate-400 hover:text-indigo-500 transition shadow-sm">
+                <i class="fas fa-cog" :class="{'fa-spin': loading}"></i>
             </button>
         </div>
     </header>
 
-    <!-- 配置面板 (可折叠) -->
+    <!-- 配置面板 -->
     <transition name="fade">
         <div v-if="showConfig" class="glass p-6 rounded-2xl mb-6 border-l-4 border-indigo-500">
-            <h3 class="font-bold text-lg mb-4 flex items-center gap-2 text-indigo-400">
-                <i class="fas fa-sliders-h"></i> 系统设置
-            </h3>
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-lg text-slate-700 flex items-center gap-2">
+                    <i class="fas fa-sliders-h text-indigo-500"></i> 设置
+                </h3>
+                <span class="text-xs text-orange-500 bg-orange-50 px-2 py-1 rounded">修改目标会自动同步到云端</span>
+            </div>
+            
             <div class="space-y-4">
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">GitHub Token</label>
-                    <input type="password" v-model="config.token" class="w-full input-dark rounded px-3 py-2 text-sm font-mono text-slate-300">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">GitHub Token</label>
+                        <input type="password" v-model="config.token" class="w-full input-light rounded-lg px-3 py-2 text-sm font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">Gist ID</label>
+                        <input type="text" v-model="config.gistId" class="w-full input-light rounded-lg px-3 py-2 text-sm font-mono">
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">Gist ID</label>
-                    <input type="text" v-model="config.gistId" class="w-full input-dark rounded px-3 py-2 text-sm font-mono text-slate-300">
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div><label class="text-xs text-slate-400">初始体重</label><input type="number" v-model.number="config.start" class="w-full input-dark rounded px-3 py-2"></div>
-                    <div><label class="text-xs text-slate-400">目标体重</label><input type="number" v-model.number="config.target" class="w-full input-dark rounded px-3 py-2"></div>
+                <div class="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <div>
+                        <label class="text-xs font-bold text-slate-400">初始体重 (kg)</label>
+                        <input type="number" v-model.number="config.start" class="w-full input-light rounded-lg px-3 py-2 mt-1 font-bold text-slate-700">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-400">目标体重 (kg)</label>
+                        <input type="number" v-model.number="config.target" class="w-full input-light rounded-lg px-3 py-2 mt-1 font-bold text-indigo-600">
+                    </div>
                 </div>
                 <div class="flex justify-end gap-3 mt-2">
-                    <button @click="pullData" :disabled="loading" class="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-sm font-bold">
+                    <button @click="pullData" :disabled="loading" class="px-4 py-2 rounded-lg text-slate-500 hover:bg-slate-100 text-sm font-bold transition">
                         <i class="fas fa-download mr-1"></i> 仅拉取
                     </button>
-                    <button @click="saveConfig" class="px-6 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold shadow-lg shadow-indigo-500/30">
-                        保存并连接
+                    <button @click="saveConfigAndPush" class="px-6 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold shadow-lg shadow-indigo-200 transition">
+                        保存配置并同步
                     </button>
                 </div>
             </div>
@@ -131,34 +160,37 @@
     <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
         
         <!-- 左侧：游戏化展示 -->
-        <div class="md:col-span-5 glass rounded-2xl p-6 flex flex-col items-center relative overflow-hidden">
-            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+        <div class="md:col-span-5 glass rounded-3xl p-8 flex flex-col items-center relative overflow-hidden">
+            <!-- 装饰背景 -->
+            <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-amber-300 via-orange-400 to-rose-400"></div>
             
-            <div class="text-center mb-6">
-                <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Current Weight</p>
-                <div class="text-5xl font-bold text-white tracking-tight">{{ currentWeight }}<span class="text-lg text-slate-500 ml-1">kg</span></div>
+            <div class="text-center mb-8">
+                <p class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Current Weight</p>
+                <div class="text-6xl font-black text-slate-800 tracking-tighter drop-shadow-sm">
+                    {{ currentWeight }}<span class="text-xl text-slate-400 ml-1 font-normal">kg</span>
+                </div>
             </div>
 
-            <div class="pac-grid mb-6">
-                <div v-for="n in 100" :key="n" class="pac-cell" :class="{'opacity-20': n < currentStep}">
+            <div class="pac-grid mb-8">
+                <div v-for="n in 100" :key="n" class="pac-cell" :class="{'opacity-30': n < currentStep}">
                     <div v-if="n === currentStep" class="pacman"></div>
-                    <div v-else-if="n === 100" class="fas fa-flag-checkered text-rose-500"></div>
+                    <div v-else-if="n === 100" class="fas fa-flag-checkered text-rose-500 text-lg"></div>
                     <div v-else-if="n > currentStep" class="dot"></div>
                 </div>
             </div>
 
-            <div class="w-full flex justify-between text-sm px-4">
-                <div class="text-center">
-                    <div class="text-emerald-400 font-bold text-lg">{{ lostJin }}</div>
-                    <div class="text-xs text-slate-500">已减 (斤)</div>
+            <div class="w-full flex justify-between text-sm px-2 bg-white/50 rounded-xl py-4 border border-white">
+                <div class="text-center flex-1 border-r border-slate-200">
+                    <div class="text-emerald-500 font-black text-xl">{{ lostJin }}</div>
+                    <div class="text-xs text-slate-400 font-medium">已减 (斤)</div>
                 </div>
-                <div class="text-center">
-                    <div class="text-amber-400 font-bold text-lg">{{ progress }}%</div>
-                    <div class="text-xs text-slate-500">进度</div>
+                <div class="text-center flex-1 border-r border-slate-200">
+                    <div class="text-amber-500 font-black text-xl">{{ progress }}%</div>
+                    <div class="text-xs text-slate-400 font-medium">进度</div>
                 </div>
-                <div class="text-center">
-                    <div class="text-rose-400 font-bold text-lg">{{ remainJin }}</div>
-                    <div class="text-xs text-slate-500">剩余 (斤)</div>
+                <div class="text-center flex-1">
+                    <div class="text-rose-500 font-black text-xl">{{ remainJin }}</div>
+                    <div class="text-xs text-slate-400 font-medium">剩余 (斤)</div>
                 </div>
             </div>
         </div>
@@ -167,50 +199,50 @@
         <div class="md:col-span-7 flex flex-col gap-6">
             
             <!-- 输入区 -->
-            <div class="glass rounded-2xl p-5">
-                <h3 class="text-sm font-bold text-slate-300 mb-3"><i class="fas fa-pen mr-2"></i>今日打卡</h3>
-                <div class="flex gap-2">
-                    <input type="date" v-model="input.date" class="input-dark rounded px-3 py-2 text-sm w-1/3">
-                    <input type="number" v-model.number="input.weight" placeholder="体重" class="input-dark rounded px-3 py-2 text-sm w-1/3">
-                    <input type="number" v-model.number="input.cost" placeholder="花费" class="input-dark rounded px-3 py-2 text-sm w-1/3">
+            <div class="glass rounded-3xl p-6">
+                <h3 class="text-sm font-bold text-slate-400 mb-4 uppercase tracking-wide"><i class="fas fa-pen mr-2"></i>今日打卡</h3>
+                <div class="flex gap-3">
+                    <input type="date" v-model="input.date" class="input-light rounded-xl px-4 py-3 text-sm w-1/3 font-medium shadow-sm">
+                    <input type="number" v-model.number="input.weight" placeholder="体重" class="input-light rounded-xl px-4 py-3 text-sm w-1/3 font-medium shadow-sm">
+                    <input type="number" v-model.number="input.cost" placeholder="花费" class="input-light rounded-xl px-4 py-3 text-sm w-1/3 font-medium shadow-sm">
                 </div>
-                <button @click="addRecord" :disabled="loading" class="w-full mt-3 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded font-bold transition flex justify-center items-center gap-2 shadow-lg shadow-indigo-900/50">
+                <button @click="addRecord" :disabled="loading" class="w-full mt-4 bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold transition flex justify-center items-center gap-2 shadow-lg shadow-slate-200">
                     <i class="fas" :class="loading ? 'fa-spinner fa-spin' : 'fa-plus'"></i>
                     {{ loading ? '正在同步...' : '记录并同步' }}
                 </button>
             </div>
 
             <!-- 图表 -->
-            <div class="glass rounded-2xl p-4 h-64 relative">
+            <div class="glass rounded-3xl p-5 h-64 relative border border-white">
                 <div id="chart" class="w-full h-full"></div>
-                <div v-if="records.length === 0" class="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">
-                    <span v-if="loading">数据加载中...</span>
+                <div v-if="records.length === 0" class="absolute inset-0 flex items-center justify-center text-slate-400 text-sm font-medium">
+                    <span v-if="loading"><i class="fas fa-spinner fa-spin mr-2"></i>加载数据中...</span>
                     <span v-else>暂无数据，请添加或导入</span>
                 </div>
             </div>
 
             <!-- 列表 -->
-            <div class="glass rounded-2xl p-4 flex-1 overflow-hidden flex flex-col">
-                <div class="flex justify-between items-center mb-2">
-                    <h3 class="text-sm font-bold text-slate-300">历史记录</h3>
-                    <span class="text-xs text-slate-500">{{ records.length }} 条</span>
+            <div class="glass rounded-3xl p-6 flex-1 overflow-hidden flex flex-col min-h-[200px]">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wide">历史记录</h3>
+                    <span class="bg-slate-100 text-slate-500 text-xs px-2 py-1 rounded-md font-bold">{{ records.length }} 条</span>
                 </div>
-                <div class="overflow-y-auto max-h-48 pr-2 custom-scroll">
-                    <table class="w-full text-sm text-left text-slate-400">
+                <div class="overflow-y-auto pr-2 custom-scroll flex-1">
+                    <table class="w-full text-sm text-left text-slate-600">
                         <thead>
-                            <tr class="text-xs text-slate-600 border-b border-slate-800">
-                                <th class="pb-2">日期</th>
-                                <th class="pb-2">体重</th>
-                                <th class="pb-2 text-right">操作</th>
+                            <tr class="text-xs text-slate-400 border-b border-slate-100">
+                                <th class="pb-3 pl-2">日期</th>
+                                <th class="pb-3">体重</th>
+                                <th class="pb-3 text-right pr-2">操作</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="(r, i) in sortedRecords" :key="i" class="border-b border-slate-800/50 hover:bg-slate-800/30 transition group">
-                                <td class="py-2 font-mono text-slate-300">{{ r.date }}</td>
-                                <td class="py-2 font-bold text-amber-400">{{ r.weight }}</td>
-                                <td class="py-2 text-right">
-                                    <button @click="deleteRecord(r)" class="text-slate-600 hover:text-rose-500 transition opacity-0 group-hover:opacity-100">
-                                        <i class="fas fa-trash"></i>
+                            <tr v-for="(r, i) in sortedRecords" :key="i" class="border-b border-slate-50 hover:bg-slate-50 transition group">
+                                <td class="py-3 pl-2 font-mono text-slate-500">{{ r.date }}</td>
+                                <td class="py-3 font-bold text-slate-800">{{ r.weight }}</td>
+                                <td class="py-3 text-right pr-2">
+                                    <button @click="deleteRecord(r)" class="text-slate-300 hover:text-rose-500 transition opacity-0 group-hover:opacity-100">
+                                        <i class="fas fa-trash-alt"></i>
                                     </button>
                                 </td>
                             </tr>
@@ -233,7 +265,7 @@ createApp({
             showConfig: false,
             msg: '',
             msgType: 'info',
-            // 默认配置 (如果本地没有缓存，则使用这些默认值)
+            // 默认配置
             config: {
                 token: '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', 
                 gistId: 'bad89a736eb73d5165930e216d568ce4',       
@@ -278,19 +310,19 @@ createApp({
         }
     },
     mounted() {
-        // 1. 尝试读取本地存储的配置
-        const saved = localStorage.getItem('pacman_github_conf');
+        // 1. 读取本地 Token/ID 配置 (不读取 start/target，因为要以云端为准)
+        const saved = localStorage.getItem('pacman_github_auth');
         if(saved) {
             const parsed = JSON.parse(saved);
-            // 合并配置，防止缺少字段
-            this.config = { ...this.config, ...parsed };
+            this.config.token = parsed.token || this.config.token;
+            this.config.gistId = parsed.gistId || this.config.gistId;
         }
         
         // 2. 自动拉取数据
         if(this.config.token && this.config.gistId) {
             this.pullData();
         } else {
-            this.showConfig = true; // 如果没配置，自动展开设置面板
+            this.showConfig = true;
         }
 
         this.$nextTick(() => this.initChart());
@@ -302,19 +334,109 @@ createApp({
             this.msgType = type;
             setTimeout(() => this.msg = '', 3000);
         },
-
-        saveConfig() {
-            localStorage.setItem('pacman_github_conf', JSON.stringify(this.config));
-            this.showConfig = false;
-            this.notify('配置已保存');
-            this.pullData(); // 保存后立即尝试连接
+        
+        toggleConfig() {
+            this.showConfig = !this.showConfig;
         },
 
-        // --- Excel 导入逻辑 ---
+        // 保存配置到本地，并触发一次云端保存（更新meta信息）
+        async saveConfigAndPush() {
+            // 只在本地保存认证信息
+            localStorage.setItem('pacman_github_auth', JSON.stringify({
+                token: this.config.token,
+                gistId: this.config.gistId
+            }));
+            
+            this.showConfig = false;
+            this.notify('配置已更新，正在同步云端...');
+            
+            // 强制推送，把新的 Start/Target 写入 JSON
+            await this.pushData();
+        },
+
+        // --- GitHub Gist API (核心修改：支持 Meta 数据) ---
+        
+        async pullData() {
+            if(!this.config.token || !this.config.gistId) return;
+            this.loading = true;
+            try {
+                const res = await fetch(`https://api.github.com/gists/${this.config.gistId}`, {
+                    headers: { 'Authorization': `token ${this.config.token}` },
+                    cache: 'no-store'
+                });
+                if(!res.ok) throw new Error('连接失败: ' + res.status);
+                
+                const data = await res.json();
+                const file = data.files['data.json'];
+                
+                if(file) {
+                    const json = JSON.parse(file.content);
+                    
+                    // 兼容性处理：判断是旧版数组还是新版对象
+                    if(Array.isArray(json)) {
+                        this.records = json;
+                        this.notify('检测到旧版数据，保存后将自动升级结构');
+                    } else {
+                        // 新版结构：{ meta: {...}, records: [...] }
+                        this.records = json.records || [];
+                        if(json.meta) {
+                            this.config.start = json.meta.start || this.config.start;
+                            this.config.target = json.meta.target || this.config.target;
+                        }
+                    }
+                    this.initChart();
+                } else {
+                    this.records = [];
+                }
+                
+                if(!file) this.notify('云端无数据，已初始化');
+                else this.notify('云端数据已同步');
+
+            } catch(e) {
+                this.notify(e.message, 'error');
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async pushData() {
+            if(!this.config.token || !this.config.gistId) return;
+            this.loading = true;
+            try {
+                // 构造新版数据结构：包含 Meta 和 Records
+                const fullData = {
+                    meta: {
+                        start: this.config.start,
+                        target: this.config.target,
+                        updatedAt: new Date().toISOString()
+                    },
+                    records: this.records
+                };
+
+                const payload = { files: { "data.json": { content: JSON.stringify(fullData, null, 2) } } };
+                
+                const res = await fetch(`https://api.github.com/gists/${this.config.gistId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `token ${this.config.token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                if(!res.ok) throw new Error('上传失败');
+                this.notify('数据与目标已同步至云端');
+            } catch(e) {
+                this.notify(e.message, 'error');
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        // --- Excel 导入 ---
         handleExcelUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
-
             this.notify('正在解析 Excel...', 'info');
             this.loading = true;
 
@@ -326,10 +448,10 @@ createApp({
                     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                     const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
 
-                    // 寻找表头
                     let dateIdx = -1, weightIdx = -1, costIdx = -1;
                     let headerRowIndex = 0;
 
+                    // 智能查找表头
                     for(let i=0; i<Math.min(5, rows.length); i++) {
                         const rowStr = rows[i].join(' ').toLowerCase();
                         if(rowStr.includes('date') || rowStr.includes('日期')) {
@@ -344,24 +466,17 @@ createApp({
                         }
                     }
 
-                    if(dateIdx === -1 || weightIdx === -1) {
-                        throw new Error('未找到"日期"或"体重"列');
-                    }
+                    if(dateIdx === -1 || weightIdx === -1) throw new Error('未找到"日期"或"体重"列');
 
                     let importCount = 0;
                     const newMap = new Map();
-                    
-                    // 1. 现有数据入库
                     this.records.forEach(r => newMap.set(r.date, r));
 
-                    // 2. Excel 数据覆盖
                     for(let i = headerRowIndex + 1; i < rows.length; i++) {
                         const row = rows[i];
                         if(!row[dateIdx]) continue;
-
                         const dateStr = this.parseExcelDate(row[dateIdx]);
                         const weightVal = parseFloat(row[weightIdx]);
-
                         if(dateStr && !isNaN(weightVal)) {
                             const record = {
                                 date: dateStr,
@@ -373,11 +488,10 @@ createApp({
                         }
                     }
 
-                    // 3. 更新并同步
                     this.records = Array.from(newMap.values());
                     this.notify(`成功导入 ${importCount} 条数据`);
                     this.initChart();
-                    this.pushData(); // 自动上传
+                    this.pushData();
 
                 } catch (err) {
                     console.error(err);
@@ -401,51 +515,7 @@ createApp({
             return date.toISOString().split('T')[0];
         },
 
-        // --- GitHub Gist API ---
-        async pullData() {
-            if(!this.config.token || !this.config.gistId) return;
-            this.loading = true;
-            try {
-                const res = await fetch(`https://api.github.com/gists/${this.config.gistId}`, {
-                    headers: { 'Authorization': `token ${this.config.token}` },
-                    cache: 'no-store'
-                });
-                if(!res.ok) throw new Error('连接失败: ' + res.status);
-                const data = await res.json();
-                const file = data.files['data.json'];
-                this.records = file ? JSON.parse(file.content) : [];
-                this.notify('云端数据已同步');
-                this.initChart();
-            } catch(e) {
-                this.notify(e.message, 'error');
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        async pushData() {
-            if(!this.config.token || !this.config.gistId) return;
-            this.loading = true;
-            try {
-                const payload = { files: { "data.json": { content: JSON.stringify(this.records, null, 2) } } };
-                const res = await fetch(`https://api.github.com/gists/${this.config.gistId}`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Authorization': `token ${this.config.token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(payload)
-                });
-                if(!res.ok) throw new Error('上传失败');
-                this.notify('已自动保存到云端');
-            } catch(e) {
-                this.notify(e.message, 'error');
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        // --- 基础业务 ---
+        // --- 业务逻辑 ---
         async addRecord() {
             if(!this.input.weight) return this.notify('请输入体重', 'error');
             const idx = this.records.findIndex(r => r.date === this.input.date);
@@ -468,19 +538,42 @@ createApp({
             if(!dom) return;
             if(!this.chart) this.chart = echarts.init(dom);
             const data = this.timelineRecords;
+            
+            // 浅色图表配置
             this.chart.setOption({
                 grid: { top: 20, right: 20, bottom: 20, left: 40, containLabel: true },
-                tooltip: { trigger: 'axis', backgroundColor: 'rgba(30,41,59,0.9)', borderColor: '#475569', textStyle: {color:'#fff'} },
-                xAxis: { type: 'category', data: data.map(r => r.date), axisLine: { lineStyle: { color: '#475569' } } },
-                yAxis: { type: 'value', scale: true, splitLine: { lineStyle: { color: '#334155', type: 'dashed' } }, axisLabel: { color: '#94a3b8' } },
+                tooltip: { 
+                    trigger: 'axis', 
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                    borderColor: '#e2e8f0', 
+                    textStyle: {color:'#334155'},
+                    extraCssText: 'box-shadow: 0 4px 12px rgba(0,0,0,0.1);'
+                },
+                xAxis: { 
+                    type: 'category', 
+                    data: data.map(r => r.date),
+                    axisLine: { lineStyle: { color: '#cbd5e1' } },
+                    axisLabel: { color: '#64748b' }
+                },
+                yAxis: { 
+                    type: 'value', 
+                    scale: true, 
+                    splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
+                    axisLabel: { color: '#94a3b8' }
+                },
                 series: [{
                     data: data.map(r => r.weight),
                     type: 'line',
                     smooth: true,
                     symbolSize: 8,
-                    itemStyle: { color: '#fbbf24' },
-                    lineStyle: { width: 3, color: '#fbbf24' },
-                    areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(251, 191, 36, 0.3)' }, { offset: 1, color: 'rgba(251, 191, 36, 0)' }]) }
+                    itemStyle: { color: '#f59e0b', borderColor: '#fff', borderWidth: 2 },
+                    lineStyle: { width: 4, color: '#f59e0b', shadowColor: 'rgba(245, 158, 11, 0.3)', shadowBlur: 10 },
+                    areaStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: 'rgba(245, 158, 11, 0.2)' },
+                            { offset: 1, color: 'rgba(245, 158, 11, 0)' }
+                        ])
+                    }
                 }]
             });
         }
