@@ -1,14 +1,11 @@
-这是一个非常经典的问题。Google Sheets 的 API (`/gviz/tq`) 为了节省资源，**缓存非常严重**。如果您不强制刷新，它往往会返回几分钟甚至几小时前的数据。
+这是一个非常实用的需求！与其每次都要修改代码，不如直接在页面的“设置”面板里配置链接。
 
-此外，我之前的代码逻辑是“只添加新日期”，这意味着如果您修改了**已有日期**的数据（比如修正了昨天的体重），旧代码会忽略更新。
+我为您更新了代码，主要改动如下：
+1.  **设置面板升级**：在“目标设定”区域新增了 **Google Sheet 链接** 输入框。
+2.  **智能提取**：您可以直接粘贴完整的 Google Sheets 网址（例如 `https://docs.google.com/spreadsheets/d/ABC.../edit`），程序会自动提取中间的 `ID`。
+3.  **自动保存**：配置好的链接 ID 会保存在浏览器的本地缓存中，刷新页面不会丢失。
 
-我为您修复了这两个问题：
-1.  **🚀 强制穿透缓存**：在请求链接后加了时间戳参数 `&_t=`，强制 Google 返回最新数据。
-2.  **🔄 覆盖更新逻辑**：现在的逻辑是“如果有这天的数据，就更新它；如果没有，就添加它”。
-
-### 🛠️ 修复后的完整代码 (Google Sheets 专用版)
-
-请直接复制以下代码，我已经把您的 Sheet ID (`1Inbi59...`) 内置进去了，**复制即用**。
+### 🛠️ 最终完整版 (支持自定义 Sheet 链接)
 
 ```html
 <!DOCTYPE html>
@@ -16,7 +13,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>身材吃豆人 (Google强力同步版)</title>
+    <title>身材吃豆人 (自定义源版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
@@ -125,7 +122,7 @@
             <h1 class="text-2xl md:text-3xl font-bold text-slate-800 bg-clip-text text-transparent bg-gradient-to-r from-amber-500 to-orange-600">
                 <i class="fas fa-ghost mr-2 text-amber-500"></i>身材吃豆人
             </h1>
-            <p class="text-slate-500 mt-1 text-xs md:text-sm">Google Sheets 强力同步版</p>
+            <p class="text-slate-500 mt-1 text-xs md:text-sm">Google Sheets 自定义源版</p>
         </div>
         
         <div class="flex gap-2 w-full md:w-auto justify-center items-center flex-wrap">
@@ -180,10 +177,10 @@
                 </form>
             </div>
 
-            <!-- 目标设定 -->
+            <!-- 目标设定 (包含 Google Sheet 链接配置) -->
             <div class="glass-panel rounded-2xl p-4">
                 <div @click="showSettings = !showSettings" class="flex justify-between items-center cursor-pointer">
-                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider">🎯 目标设定</h3>
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider">🎯 目标 & 配置</h3>
                     <i class="fas fa-chevron-down transition-transform duration-300 text-slate-400" :class="{'rotate-180': showSettings}"></i>
                 </div>
                 <div v-if="showSettings" class="mt-4 grid grid-cols-2 gap-3 animate-fade-in">
@@ -195,6 +192,18 @@
                         <label class="block text-xs text-slate-400 mb-1">目标 (KG)</label>
                         <input type="number" v-model.number="settings.targetWeight" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
                     </div>
+                    
+                    <!-- 新增：Google Sheet 链接输入 -->
+                    <div class="col-span-2 mt-2 pt-2 border-t border-slate-100">
+                        <label class="block text-xs text-slate-500 font-bold mb-1">
+                            <i class="fab fa-google text-green-600 mr-1"></i>Google Sheet 链接
+                        </label>
+                        <input type="text" v-model="sheetInput" placeholder="粘贴完整链接或ID..." class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-600 break-all">
+                        <p class="text-[10px] text-slate-400 mt-1">
+                            * 请确保表格权限已设为 "Anyone with the link" -> "Viewer"
+                        </p>
+                    </div>
+
                     <button @click="saveSettings" class="col-span-2 mt-2 btn-active bg-slate-800 text-white text-xs py-2 rounded-lg">保存设定</button>
                 </div>
             </div>
@@ -325,8 +334,9 @@ const app = createApp({
             showSettings: true,
             toastMsg: '',
             isLoading: false,
-            // 您的 Google Sheet ID (已内置)
+            // 默认演示ID，用户可修改
             sheetId: '1Inbi59ix1oVaUqrXxZVev6uiy6eUZRMuqEV5ZG_tQDA',
+            sheetInput: '', // 用于输入框绑定
             settings: { initialWeight: 80, targetWeight: 65 },
             newRecord: { date: new Date().toISOString().split('T')[0], weight: '', cost: '' },
             records: [],
@@ -391,10 +401,16 @@ const app = createApp({
             this.toastMsg = msg;
             setTimeout(() => this.toastMsg = '', 3000);
         },
-        // --- Google Sheets 同步逻辑 (修复版) ---
+        // --- Google Sheets 同步逻辑 ---
         async syncGoogleSheet() {
+            if (!this.sheetId) {
+                this.showToast('请先在设置中配置 Sheet 链接');
+                this.showSettings = true;
+                return;
+            }
+
             this.isLoading = true;
-            // 关键修复：添加时间戳参数 &_t=Date.now() 强制不缓存
+            // 强制不缓存
             const url = `https://docs.google.com/spreadsheets/d/${this.sheetId}/gviz/tq?tqx=out:csv&_t=${Date.now()}`;
             
             try {
@@ -435,11 +451,9 @@ const app = createApp({
                     const weightVal = parseFloat(row[weightIdx]);
                     const costVal = costIdx !== -1 ? (parseFloat(row[costIdx]) || 0) : 0;
 
-                    // 关键修复：检查是否存在，存在则更新，不存在则添加
                     const existingIndex = this.records.findIndex(r => r.date === fmtDate);
                     
                     if (existingIndex !== -1) {
-                        // 检查数值是否有变化，有变化才更新
                         if (this.records[existingIndex].weight !== weightVal || this.records[existingIndex].cost !== costVal) {
                             this.records[existingIndex].weight = weightVal;
                             this.records[existingIndex].cost = costVal;
@@ -465,7 +479,7 @@ const app = createApp({
 
             } catch (error) {
                 console.error(error);
-                this.showToast('同步失败，请稍后再试');
+                this.showToast('同步失败：请检查链接或权限');
             } finally {
                 this.isLoading = false;
             }
@@ -474,7 +488,7 @@ const app = createApp({
         
         generateMagicLink() {
             try {
-                const dataStr = JSON.stringify({ settings: this.settings, records: this.records });
+                const dataStr = JSON.stringify({ settings: this.settings, records: this.records, sheetId: this.sheetId });
                 const encoded = btoa(encodeURIComponent(dataStr));
                 const newUrl = `${window.location.origin}${window.location.pathname}?data=${encoded}`;
                 navigator.clipboard.writeText(newUrl).then(() => {
@@ -495,6 +509,8 @@ const app = createApp({
                     if(confirm('检测到链接中包含历史数据，是否加载？(将覆盖当前缓存)')) {
                         this.settings = parsed.settings || this.settings;
                         this.records = parsed.records || [];
+                        this.sheetId = parsed.sheetId || this.sheetId;
+                        this.sheetInput = this.sheetId;
                         this.saveData();
                         this.showToast('数据已恢复！');
                         const cleanUrl = window.location.origin + window.location.pathname;
@@ -506,6 +522,19 @@ const app = createApp({
             }
         },
         saveSettings() {
+            // 提取 Sheet ID 逻辑
+            if (this.sheetInput) {
+                // 尝试匹配 /d/xxxx/ 格式
+                const match = this.sheetInput.match(/\/d\/([a-zA-Z0-9-_]+)/);
+                if (match) {
+                    this.sheetId = match[1];
+                    this.sheetInput = this.sheetId; // 回显 ID 保持整洁
+                } else {
+                    // 假设用户直接输入了 ID
+                    this.sheetId = this.sheetInput.trim();
+                }
+            }
+
             this.saveData();
             this.showSettings = false;
             this.showToast('设定已保存');
@@ -551,7 +580,12 @@ const app = createApp({
             return isDown ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold';
         },
         saveData() {
-            localStorage.setItem('weightTrackerData', JSON.stringify({ settings: this.settings, records: this.records }));
+            // 保存 sheetId 到本地存储
+            localStorage.setItem('weightTrackerData', JSON.stringify({ 
+                settings: this.settings, 
+                records: this.records,
+                sheetId: this.sheetId 
+            }));
             this.$nextTick(() => { this.initChart(); });
         },
         loadData() {
@@ -561,6 +595,11 @@ const app = createApp({
                     const parsed = JSON.parse(saved);
                     this.settings = parsed.settings || this.settings;
                     this.records = parsed.records || [];
+                    // 读取保存的 Sheet ID
+                    if (parsed.sheetId) {
+                        this.sheetId = parsed.sheetId;
+                        this.sheetInput = parsed.sheetId;
+                    }
                 }
             } catch (e) {}
             this.$nextTick(() => { this.initChart(); });
