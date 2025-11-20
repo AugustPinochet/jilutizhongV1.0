@@ -1,22 +1,14 @@
-这是一个非常实用的功能升级！直接连接 Google Sheets 可以让数据管理更方便，不用担心浏览器缓存丢失。
+这是一个非常经典的问题。Google Sheets 的 API (`/gviz/tq`) 为了节省资源，**缓存非常严重**。如果您不强制刷新，它往往会返回几分钟甚至几小时前的数据。
 
-为了实现这一点，我们需要利用 **Google Sheets 的 CSV 导出接口**。
+此外，我之前的代码逻辑是“只添加新日期”，这意味着如果您修改了**已有日期**的数据（比如修正了昨天的体重），旧代码会忽略更新。
 
-### ⚠️ 重要前置步骤 (必读)
-为了让网页能读取您的表格，您必须确保表格权限是公开的：
-1.  打开您的 Google Sheet。
-2.  点击右上角 **Share (分享)**。
-3.  将权限设置为 **"Anyone with the link" (知道链接的任何人)** -> **"Viewer" (查看者)**。
-4.  **无需**发布到 Web，只要有查看权限即可。
+我为您修复了这两个问题：
+1.  **🚀 强制穿透缓存**：在请求链接后加了时间戳参数 `&_t=`，强制 Google 返回最新数据。
+2.  **🔄 覆盖更新逻辑**：现在的逻辑是“如果有这天的数据，就更新它；如果没有，就添加它”。
 
----
+### 🛠️ 修复后的完整代码 (Google Sheets 专用版)
 
-### 📊 更新内容
-1.  **新增“云同步”按钮**：点击后直接从您提供的 Google Sheet 拉取数据。
-2.  **智能解析**：自动识别表格中的 `日期`、`体重`、`花费` 列（支持中文表头）。
-3.  **数据融合**：拉取的数据会自动合并到当前记录中。
-
-### 🕹️ 最终完整版代码 (Pac-Man + Google Sheets)
+请直接复制以下代码，我已经把您的 Sheet ID (`1Inbi59...`) 内置进去了，**复制即用**。
 
 ```html
 <!DOCTYPE html>
@@ -24,11 +16,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>身材吃豆人 (云同步版)</title>
+    <title>身材吃豆人 (Google强力同步版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-    <!-- 引入 XLSX 用于解析 Google Sheet CSV -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
@@ -113,7 +104,6 @@
         .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
         .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-20px); }
         
-        /* 加载旋转 */
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
@@ -135,14 +125,14 @@
             <h1 class="text-2xl md:text-3xl font-bold text-slate-800 bg-clip-text text-transparent bg-gradient-to-r from-amber-500 to-orange-600">
                 <i class="fas fa-ghost mr-2 text-amber-500"></i>身材吃豆人
             </h1>
-            <p class="text-slate-500 mt-1 text-xs md:text-sm">Google Sheets 云端同步版</p>
+            <p class="text-slate-500 mt-1 text-xs md:text-sm">Google Sheets 强力同步版</p>
         </div>
         
         <div class="flex gap-2 w-full md:w-auto justify-center items-center flex-wrap">
             <!-- Google Sheets 同步按钮 -->
             <button @click="syncGoogleSheet" :disabled="isLoading" class="btn-active px-4 py-2 bg-green-600 text-white rounded-lg shadow-lg shadow-green-200 text-sm font-medium flex items-center gap-2">
                 <i class="fas" :class="isLoading ? 'fa-spinner spin' : 'fa-cloud-download-alt'"></i> 
-                <span class="hidden md:inline">同步 Google Sheet</span><span class="md:hidden">同步</span>
+                <span class="hidden md:inline">强制同步</span><span class="md:hidden">同步</span>
             </button>
 
             <button @click="generateMagicLink" class="btn-active px-3 py-2 bg-indigo-500 text-white rounded-lg shadow-sm text-sm" title="保存为链接">
@@ -335,7 +325,7 @@ const app = createApp({
             showSettings: true,
             toastMsg: '',
             isLoading: false,
-            // 您的 Google Sheet ID (从链接中提取)
+            // 您的 Google Sheet ID (已内置)
             sheetId: '1Inbi59ix1oVaUqrXxZVev6uiy6eUZRMuqEV5ZG_tQDA',
             settings: { initialWeight: 80, targetWeight: 65 },
             newRecord: { date: new Date().toISOString().split('T')[0], weight: '', cost: '' },
@@ -401,10 +391,11 @@ const app = createApp({
             this.toastMsg = msg;
             setTimeout(() => this.toastMsg = '', 3000);
         },
-        // --- Google Sheets 同步逻辑 ---
+        // --- Google Sheets 同步逻辑 (修复版) ---
         async syncGoogleSheet() {
             this.isLoading = true;
-            const url = `https://docs.google.com/spreadsheets/d/${this.sheetId}/gviz/tq?tqx=out:csv`;
+            // 关键修复：添加时间戳参数 &_t=Date.now() 强制不缓存
+            const url = `https://docs.google.com/spreadsheets/d/${this.sheetId}/gviz/tq?tqx=out:csv&_t=${Date.now()}`;
             
             try {
                 const response = await fetch(url);
@@ -412,18 +403,15 @@ const app = createApp({
                 
                 const csvText = await response.text();
                 
-                // 使用 XLSX 解析 CSV
                 const workbook = XLSX.read(csvText, { type: 'string' });
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }); // 数组数组格式
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
 
                 if (jsonData.length < 2) {
                     this.showToast('表格似乎是空的');
                     return;
                 }
 
-                // 简单的列映射 (假设顺序: 日期, 体重, 花费)
-                // 或者根据表头名称查找索引
                 const headers = jsonData[0].map(h => h.toString().trim());
                 const dateIdx = headers.findIndex(h => h.includes('日期') || h.includes('Date'));
                 const weightIdx = headers.findIndex(h => h.includes('体重') || h.includes('Weight'));
@@ -433,16 +421,13 @@ const app = createApp({
                     throw new Error('未找到"日期"或"体重"列');
                 }
 
-                let addedCount = 0;
+                let updateCount = 0;
                 
-                // 从第二行开始遍历
                 for (let i = 1; i < jsonData.length; i++) {
                     const row = jsonData[i];
                     if (!row[dateIdx] || !row[weightIdx]) continue;
 
                     let dateStr = row[dateIdx];
-                    // 处理日期格式 (如果是Excel序列号则转换，如果是字符串则尝试解析)
-                    // 简单处理：假设是字符串格式 YYYY-MM-DD 或 YYYY/MM/DD
                     let dateObj = new Date(dateStr);
                     if (isNaN(dateObj.getTime())) continue;
                     
@@ -450,29 +435,37 @@ const app = createApp({
                     const weightVal = parseFloat(row[weightIdx]);
                     const costVal = costIdx !== -1 ? (parseFloat(row[costIdx]) || 0) : 0;
 
-                    // 检查是否已存在
-                    const exists = this.records.some(r => r.date === fmtDate);
-                    if (!exists) {
+                    // 关键修复：检查是否存在，存在则更新，不存在则添加
+                    const existingIndex = this.records.findIndex(r => r.date === fmtDate);
+                    
+                    if (existingIndex !== -1) {
+                        // 检查数值是否有变化，有变化才更新
+                        if (this.records[existingIndex].weight !== weightVal || this.records[existingIndex].cost !== costVal) {
+                            this.records[existingIndex].weight = weightVal;
+                            this.records[existingIndex].cost = costVal;
+                            updateCount++;
+                        }
+                    } else {
                         this.records.push({
                             id: Date.now() + i,
                             date: fmtDate,
                             weight: weightVal,
                             cost: costVal
                         });
-                        addedCount++;
+                        updateCount++;
                     }
                 }
 
-                if (addedCount > 0) {
+                if (updateCount > 0) {
                     this.saveData();
-                    this.showToast(`成功同步 ${addedCount} 条新记录！`);
+                    this.showToast(`同步成功：更新/新增 ${updateCount} 条记录`);
                 } else {
                     this.showToast('数据已是最新');
                 }
 
             } catch (error) {
                 console.error(error);
-                this.showToast('同步失败：请确保表格权限为"知道链接者可查看"');
+                this.showToast('同步失败，请稍后再试');
             } finally {
                 this.isLoading = false;
             }
@@ -582,7 +575,7 @@ const app = createApp({
             if (!this.chartInstance) this.chartInstance = echarts.init(chartDom);
 
             const data = this.timelineRecords;
-            const dates = data.map(r => r.date); // Use full date for better clarity
+            const dates = data.map(r => r.date); 
             const weights = data.map(r => r.weight);
             
             const option = {
