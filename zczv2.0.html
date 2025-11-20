@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>减重与成本追踪看板</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- 引入 ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <!-- 引入图标库 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+        body { font-family: 'Noto Sans SC', sans-serif; background-color: #f3f4f6; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.07);
+        }
+        .input-field {
+            transition: all 0.3s;
+        }
+        .input-field:focus {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+        }
+    </style>
+</head>
+<body class="text-slate-700">
+
+<div id="app" class="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
+    
+    <!-- 顶部标题 -->
+    <header class="mb-8 flex flex-col md:flex-row justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-800 bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-teal-500">
+                <i class="fas fa-chart-line mr-2 text-indigo-600"></i>身材投资回报率追踪
+            </h1>
+            <p class="text-slate-500 mt-1 text-sm">记录每一滴汗水与金钱的转化率</p>
+        </div>
+        <div class="mt-4 md:mt-0 flex gap-2">
+            <button @click="exportData" class="px-4 py-2 bg-white text-slate-600 rounded-lg shadow hover:bg-slate-50 text-sm transition">
+                <i class="fas fa-download mr-1"></i> 导出数据
+            </button>
+            <label class="px-4 py-2 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 text-sm transition cursor-pointer">
+                <i class="fas fa-upload mr-1"></i> 导入数据
+                <input type="file" @change="importData" class="hidden" accept=".json">
+            </label>
+        </div>
+    </header>
+
+    <!-- 核心设置区 -->
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <!-- 初始设定 -->
+        <div class="glass-panel rounded-2xl p-6 relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-24 h-24 bg-indigo-100 rounded-full -mr-10 -mt-10 opacity-50"></div>
+            <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">基础设定</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">初始体重 (KG)</label>
+                    <input type="number" v-model.number="settings.initialWeight" @change="saveData" class="input-field w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">目标体重 (KG)</label>
+                    <input type="number" v-model.number="settings.targetWeight" @change="saveData" class="input-field w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-teal-500">
+                </div>
+                <div class="pt-2 border-t border-slate-100">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs text-slate-500">目标减重</span>
+                        <span class="font-bold text-indigo-600">{{ targetLossJin }} <span class="text-xs font-normal">斤</span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 核心指标卡片 -->
+        <div class="glass-panel rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden group">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-teal-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-110"></div>
+            <div>
+                <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">当前战绩</h3>
+                <div class="flex items-baseline gap-2">
+                    <span class="text-4xl font-bold text-slate-800">{{ currentWeight }}</span>
+                    <span class="text-sm text-slate-500">kg</span>
+                    <span class="text-lg text-slate-400 ml-2">/ {{ (currentWeight * 2).toFixed(1) }} 斤</span>
+                </div>
+                <div class="mt-4 flex items-center gap-2">
+                    <div class="flex-1 bg-slate-200 rounded-full h-2">
+                        <div class="bg-gradient-to-r from-indigo-500 to-teal-400 h-2 rounded-full transition-all duration-1000" :style="{width: progressPercent + '%'}"></div>
+                    </div>
+                    <span class="text-xs font-bold text-teal-600">{{ progressPercent }}%</span>
+                </div>
+                <p class="text-xs text-slate-500 mt-2">距离目标还差 <span class="font-bold text-rose-500">{{ remainingJin }}</span> 斤</p>
+            </div>
+        </div>
+
+        <!-- 经济账卡片 -->
+        <div class="glass-panel rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden">
+            <div class="absolute bottom-0 left-0 w-24 h-24 bg-amber-50 rounded-full -ml-10 -mb-10"></div>
+            <div>
+                <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">经济分析</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-xs text-slate-500">累计花费</p>
+                        <p class="text-xl font-bold text-slate-800">¥{{ totalCost.toLocaleString() }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500">已减重量</p>
+                        <p class="text-xl font-bold text-teal-600">{{ lostJin }} <span class="text-xs text-slate-500">斤</span></p>
+                    </div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-slate-100">
+                    <p class="text-xs text-slate-500 mb-1">每减一斤花费 (性价比)</p>
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-3xl font-bold text-amber-500">¥{{ costPerJin }}</span>
+                        <span class="text-xs text-slate-400">/ 斤</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 预测与图表区 -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <!-- 数据录入 -->
+        <div class="glass-panel rounded-2xl p-6 lg:col-span-1">
+            <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                <i class="fas fa-pen-to-square text-indigo-500 mr-2"></i> 今日打卡
+            </h3>
+            <form @submit.prevent="addRecord" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">日期</label>
+                    <input type="date" v-model="newRecord.date" required class="input-field w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">今日体重 (KG)</label>
+                        <input type="number" step="0.01" v-model.number="newRecord.weight" required placeholder="0.0" class="input-field w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">今日花费 (元)</label>
+                        <input type="number" step="0.1" v-model.number="newRecord.cost" placeholder="0" class="input-field w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 outline-none">
+                    </div>
+                </div>
+                
+                <!-- 换算预览 -->
+                <div class="text-xs text-center text-slate-400 bg-slate-50 py-2 rounded">
+                    折合: <span class="font-bold text-slate-600">{{ (newRecord.weight * 2).toFixed(1) }}</span> 斤
+                </div>
+
+                <button type="submit" class="w-full bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-200 transition transform active:scale-95">
+                    记录数据
+                </button>
+            </form>
+
+            <!-- 预测模块 -->
+            <div class="mt-8 bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+                <h4 class="text-sm font-bold text-indigo-800 mb-2"><i class="fas fa-crystal-ball mr-1"></i> AI 预测</h4>
+                <div v-if="predictionDate">
+                    <p class="text-xs text-indigo-600 mb-1">按当前平均速度 ({{ avgLossRate }} 斤/天)</p>
+                    <p class="text-lg font-bold text-indigo-900">预计达成: {{ predictionDate }}</p>
+                    <p class="text-xs text-indigo-400 mt-1">还有 {{ daysRemaining }} 天</p>
+                </div>
+                <div v-else class="text-xs text-indigo-400">
+                    记录至少两天数据以开启预测功能
+                </div>
+            </div>
+        </div>
+
+        <!-- 主图表 -->
+        <div class="glass-panel rounded-2xl p-4 lg:col-span-2 flex flex-col">
+            <div class="flex justify-between items-center mb-2 px-2">
+                <h3 class="text-lg font-bold text-slate-800">趋势分析</h3>
+                <div class="text-xs text-slate-400">双击图表可复位缩放</div>
+            </div>
+            <div id="mainChart" class="w-full flex-1 min-h-[400px] rounded-xl bg-white/50"></div>
+        </div>
+    </section>
+
+    <!-- 详细数据列表 -->
+    <section class="glass-panel rounded-2xl p-6 overflow-hidden">
+        <h3 class="text-lg font-bold text-slate-800 mb-4">详细记录</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="text-xs text-slate-400 border-b border-slate-100">
+                        <th class="py-3 font-medium">日期</th>
+                        <th class="py-3 font-medium">体重 (KG/斤)</th>
+                        <th class="py-3 font-medium">变化 (斤)</th>
+                        <th class="py-3 font-medium">当日花费</th>
+                        <th class="py-3 font-medium text-right">操作</th>
+                    </tr>
+                </thead>
+                <tbody class="text-sm text-slate-600">
+                    <tr v-for="(record, index) in sortedRecords" :key="index" class="border-b border-slate-50 hover:bg-slate-50/80 transition">
+                        <td class="py-3">{{ record.date }}</td>
+                        <td class="py-3">
+                            <span class="font-bold">{{ record.weight }}</span>
+                            <span class="text-xs text-slate-400 ml-1">({{ (record.weight * 2).toFixed(1) }}斤)</span>
+                        </td>
+                        <td class="py-3">
+                            <span :class="getChangeClass(index)">
+                                {{ getChange(index) }}
+                            </span>
+                        </td>
+                        <td class="py-3 text-slate-500">¥{{ record.cost }}</td>
+                        <td class="py-3 text-right">
+                            <button @click="deleteRecord(record.id)" class="text-rose-400 hover:text-rose-600 p-1">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr v-if="records.length === 0">
+                        <td colspan="5" class="py-8 text-center text-slate-400">暂无数据，请在上方添加第一条记录</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</div>
+
+<script>
+const { createApp } = Vue;
+
+createApp({
+    data() {
+        return {
+            settings: {
+                initialWeight: 80,
+                targetWeight: 65
+            },
+            newRecord: {
+                date: new Date().toISOString().split('T')[0],
+                weight: '',
+                cost: ''
+            },
+            records: [], // { id, date, weight, cost }
+            chartInstance: null
+        }
+    },
+    computed: {
+        // 按日期倒序排列用于列表显示
+        sortedRecords() {
+            return [...this.records].sort((a, b) => new Date(b.date) - new Date(a.date));
+        },
+        // 按日期正序排列用于计算和图表
+        timelineRecords() {
+            return [...this.records].sort((a, b) => new Date(a.date) - new Date(b.date));
+        },
+        currentWeight() {
+            if (this.records.length === 0) return this.settings.initialWeight;
+            return this.timelineRecords[this.timelineRecords.length - 1].weight;
+        },
+        targetLossJin() {
+            return ((this.settings.initialWeight - this.settings.targetWeight) * 2).toFixed(1);
+        },
+        lostJin() {
+            let lost = (this.settings.initialWeight - this.currentWeight) * 2;
+            return lost > 0 ? lost.toFixed(1) : 0;
+        },
+        remainingJin() {
+            let rem = (this.currentWeight - this.settings.targetWeight) * 2;
+            return rem > 0 ? rem.toFixed(1) : 0;
+        },
+        totalCost() {
+            return this.records.reduce((sum, r) => sum + (r.cost || 0), 0);
+        },
+        costPerJin() {
+            const lost = parseFloat(this.lostJin);
+            if (lost <= 0) return "N/A";
+            return (this.totalCost / lost).toFixed(1);
+        },
+        progressPercent() {
+            const totalToLose = this.settings.initialWeight - this.settings.targetWeight;
+            const alreadyLost = this.settings.initialWeight - this.currentWeight;
+            if (totalToLose <= 0) return 100;
+            let pct = (alreadyLost / totalToLose) * 100;
+            return Math.min(Math.max(pct, 0), 100).toFixed(1);
+        },
+        // 预测逻辑
+        avgLossRate() {
+            if (this.timelineRecords.length < 2) return 0;
+            const first = this.timelineRecords[0];
+            const last = this.timelineRecords[this.timelineRecords.length - 1];
+            
+            const daysDiff = (new Date(last.date) - new Date(first.date)) / (1000 * 3600 * 24);
+            if (daysDiff === 0) return 0;
+
+            // 计算总共减掉的斤数 (相对于初始设置，或者相对于第一条记录？这里用相对于第一条记录更准确实时)
+            // 但为了逻辑闭环，我们计算：(第一条记录体重 - 当前体重) / 天数
+            // 如果第一条记录就是初始体重，那更好。
+            const weightDiffJin = (first.weight - last.weight) * 2;
+            
+            return weightDiffJin > 0 ? (weightDiffJin / daysDiff).toFixed(2) : 0;
+        },
+        daysRemaining() {
+            const rate = parseFloat(this.avgLossRate);
+            const remaining = parseFloat(this.remainingJin);
+            if (rate <= 0 || remaining <= 0) return null;
+            return Math.ceil(remaining / rate);
+        },
+        predictionDate() {
+            const days = this.daysRemaining;
+            if (!days) return null;
+            const today = new Date();
+            today.setDate(today.getDate() + days);
+            return today.toISOString().split('T')[0];
+        }
+    },
+    mounted() {
+        this.loadData();
+        this.initChart();
+        window.addEventListener('resize', () => {
+            this.chartInstance && this.chartInstance.resize();
+        });
+    },
+    methods: {
+        addRecord() {
+            if (!this.newRecord.weight || !this.newRecord.date) return;
+            
+            // 检查是否已存在当天记录，存在则覆盖
+            const existingIndex = this.records.findIndex(r => r.date === this.newRecord.date);
+            
+            const record = {
+                id: Date.now(),
+                date: this.newRecord.date,
+                weight: this.newRecord.weight,
+                cost: this.newRecord.cost || 0
+            };
+
+            if (existingIndex !== -1) {
+                if(confirm('检测到该日期已有记录，是否覆盖？')) {
+                    this.records[existingIndex] = record;
+                } else {
+                    return;
+                }
+            } else {
+                this.records.push(record);
+            }
+
+            this.saveData();
+            this.updateChart();
+            
+            // 重置花费，保留日期为今天
+            this.newRecord.cost = '';
+            // this.newRecord.weight = ''; // 可选：是否清空体重
+        },
+        deleteRecord(id) {
+            if(confirm('确定删除这条记录吗？')) {
+                this.records = this.records.filter(r => r.id !== id);
+                this.saveData();
+                this.updateChart();
+            }
+        },
+        getChange(index) {
+            // 列表是倒序的，index+1 是前一天
+            const current = this.sortedRecords[index];
+            const prev = this.sortedRecords[index + 1];
+            
+            if (!prev) {
+                // 如果没有前一天记录，对比初始体重
+                const diff = (this.settings.initialWeight - current.weight) * 2;
+                return (diff > 0 ? '↓ ' : '↑ ') + Math.abs(diff).toFixed(1);
+            }
+            
+            const diff = (prev.weight - current.weight) * 2;
+            if (diff === 0) return '-';
+            return (diff > 0 ? '↓ ' : '↑ ') + Math.abs(diff).toFixed(1);
+        },
+        getChangeClass(index) {
+            const current = this.sortedRecords[index];
+            const prev = this.sortedRecords[index + 1];
+            let diff;
+            
+            if (!prev) diff = (this.settings.initialWeight - current.weight);
+            else diff = (prev.weight - current.weight);
+
+            return diff > 0 ? 'text-teal-500 font-bold' : (diff < 0 ? 'text-rose-500 font-bold' : 'text-slate-400');
+        },
+        saveData() {
+            const data = {
+                settings: this.settings,
+                records: this.records
+            };
+            localStorage.setItem('weightTrackerData', JSON.stringify(data));
+            this.updateChart();
+        },
+        loadData() {
+            const saved = localStorage.getItem('weightTrackerData');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                this.settings = parsed.settings || this.settings;
+                this.records = parsed.records || [];
+            }
+        },
+        exportData() {
+            const dataStr = JSON.stringify({settings: this.settings, records: this.records});
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            const exportFileDefaultName = 'weight_data_' + new Date().toISOString().split('T')[0] + '.json';
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+        },
+        importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (parsed.settings && parsed.records) {
+                        if(confirm('导入将覆盖当前所有数据，确定吗？')) {
+                            this.settings = parsed.settings;
+                            this.records = parsed.records;
+                            this.saveData();
+                            alert('导入成功！');
+                        }
+                    } else {
+                        alert('文件格式不正确');
+                    }
+                } catch (err) {
+                    alert('文件解析失败');
+                }
+            };
+            reader.readAsText(file);
+            // Reset input
+            event.target.value = '';
+        },
+        initChart() {
+            const chartDom = document.getElementById('mainChart');
+            this.chartInstance = echarts.init(chartDom);
+            this.updateChart();
+        },
+        updateChart() {
+            if (!this.chartInstance) return;
+
+            const data = this.timelineRecords;
+            const dates = data.map(r => r.date);
+            const weights = data.map(r => r.weight);
+            const costs = data.map(r => r.cost);
+            
+            // 计算累计花费
+            let accCost = 0;
+            const cumulativeCosts = costs.map(c => {
+                accCost += c;
+                return accCost;
+            });
+
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross' },
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    formatter: function (params) {
+                        let res = `<div class="font-bold mb-1">${params[0].axisValue}</div>`;
+                        params.forEach(item => {
+                            if (item.seriesName === '体重') {
+                                res += `<span style="color:${item.color}">●</span> 体重: <b>${item.value}</b> kg (${(item.value*2).toFixed(1)}斤)<br/>`;
+                            } else if (item.seriesName === '累计花费') {
+                                res += `<span style="color:${item.color}">●</span> 累计投入: <b>¥${item.value}</b><br/>`;
+                            }
+                        });
+                        return res;
+                    }
+                },
+                legend: {
+                    data: ['体重', '目标', '累计花费'],
+                    bottom: 0
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '10%',
+                    top: '10%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    boundaryGap: false,
+                    data: dates,
+                    axisLine: { lineStyle: { color: '#94a3b8' } }
+                },
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: '体重 (KG)',
+                        min: (value) => Math.floor(Math.min(value.min, this.settings.targetWeight) - 1),
+                        position: 'left',
+                        axisLine: { show: true, lineStyle: { color: '#6366f1' } },
+                        splitLine: { lineStyle: { type: 'dashed', color: '#e2e8f0' } }
+                    },
+                    {
+                        type: 'value',
+                        name: '累计花费 (¥)',
+                        position: 'right',
+                        axisLine: { show: true, lineStyle: { color: '#f59e0b' } },
+                        splitLine: { show: false }
+                    }
+                ],
+                series: [
+                    {
+                        name: '体重',
+                        type: 'line',
+                        smooth: true,
+                        data: weights,
+                        itemStyle: { color: '#6366f1' },
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: 'rgba(99, 102, 241, 0.3)' },
+                                { offset: 1, color: 'rgba(99, 102, 241, 0.05)' }
+                            ])
+                        },
+                        markLine: {
+                            data: [{ yAxis: this.settings.targetWeight, name: '目标' }],
+                            lineStyle: { color: '#14b8a6', type: 'dashed', width: 2 },
+                            label: { formatter: '目标 {c}kg' }
+                        }
+                    },
+                    {
+                        name: '累计花费',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        smooth: true,
+                        showSymbol: false,
+                        data: cumulativeCosts,
+                        itemStyle: { color: '#f59e0b' },
+                        lineStyle: { width: 2, type: 'dotted' }
+                    }
+                ]
+            };
+
+            this.chartInstance.setOption(option);
+        }
+    }
+});
+</script>
+</body>
+</html>
