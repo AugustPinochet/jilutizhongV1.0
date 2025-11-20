@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>身材吃豆人 (私人定制版)</title>
+    <title>身材吃豆人 (GitHub云同步版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
@@ -38,11 +38,6 @@
             transition: all 0.3s;
         }
         .input-dark:focus { border-color: #6366f1; outline: none; box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2); }
-        
-        /* 滚动条美化 */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
     </style>
 </head>
 <body>
@@ -50,7 +45,7 @@
 <div id="app" v-cloak class="min-h-screen p-4 max-w-4xl mx-auto pb-20">
     
     <!-- 顶部通知 -->
-    <div v-if="msg" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-xl text-sm font-bold flex items-center gap-2 transition-all duration-300"
+    <div v-if="msg" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-xl text-sm font-bold flex items-center gap-2"
          :class="msgType === 'success' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'">
         <i class="fas" :class="msgType === 'success' ? 'fa-check' : 'fa-exclamation-circle'"></i> {{ msg }}
     </div>
@@ -61,14 +56,41 @@
             <h1 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">
                 <i class="fas fa-ghost mr-2"></i>身材吃豆人
             </h1>
-            <p class="text-xs text-slate-500 mt-1">
-                <i class="fab fa-github"></i> 已连接云端数据库
-            </p>
+            <p class="text-xs text-slate-500 mt-1">GitHub Gist 云同步版</p>
         </div>
-        <button @click="pullData" class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition" title="强制刷新">
-            <i class="fas fa-sync-alt text-slate-400" :class="{'fa-spin': loading}"></i>
+        <button @click="showConfig = !showConfig" class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition">
+            <i class="fas fa-cog text-slate-400"></i>
         </button>
     </header>
+
+    <!-- 配置面板 (首次运行自动展开) -->
+    <div v-if="showConfig || !config.token" class="glass p-6 rounded-2xl mb-6 border-l-4 border-indigo-500 animate-fade-in">
+        <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
+            <i class="fab fa-github"></i> 同步设置
+        </h3>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">GitHub Token (需要 gist 权限)</label>
+                <input type="password" v-model="config.token" placeholder="ghp_xxxxxxxxxxxx" class="w-full input-dark rounded px-3 py-2 text-sm font-mono">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Gist ID</label>
+                <input type="text" v-model="config.gistId" placeholder="例如: e5a3b..." class="w-full input-dark rounded px-3 py-2 text-sm font-mono">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="text-xs text-slate-400">初始体重</label><input type="number" v-model.number="config.start" class="w-full input-dark rounded px-3 py-2"></div>
+                <div><label class="text-xs text-slate-400">目标体重</label><input type="number" v-model.number="config.target" class="w-full input-dark rounded px-3 py-2"></div>
+            </div>
+            <div class="flex justify-end gap-3 mt-2">
+                <button @click="pullData" :disabled="loading" class="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-sm font-bold">
+                    <i class="fas fa-download mr-1"></i> 拉取云端
+                </button>
+                <button @click="saveConfig" class="px-6 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold shadow-lg shadow-indigo-500/30">
+                    保存并连接
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- 主控台 -->
     <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
@@ -118,18 +140,15 @@
                     <input type="number" v-model.number="input.weight" placeholder="体重" class="input-dark rounded px-3 py-2 text-sm w-1/3">
                     <input type="number" v-model.number="input.cost" placeholder="花费" class="input-dark rounded px-3 py-2 text-sm w-1/3">
                 </div>
-                <button @click="addRecord" :disabled="loading" class="w-full mt-3 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded font-bold transition flex justify-center items-center gap-2 shadow-lg shadow-emerald-900/50">
+                <button @click="addRecord" :disabled="loading" class="w-full mt-3 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded font-bold transition flex justify-center items-center gap-2">
                     <i class="fas" :class="loading ? 'fa-spinner fa-spin' : 'fa-plus'"></i>
-                    {{ loading ? '正在同步...' : '记录并同步' }}
+                    {{ loading ? '同步中...' : '记录并同步' }}
                 </button>
             </div>
 
             <!-- 图表 -->
-            <div class="glass rounded-2xl p-4 h-64 relative">
+            <div class="glass rounded-2xl p-4 h-64">
                 <div id="chart" class="w-full h-full"></div>
-                <div v-if="records.length === 0" class="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">
-                    等待数据同步...
-                </div>
             </div>
 
             <!-- 列表 -->
@@ -148,11 +167,11 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="(r, i) in sortedRecords" :key="i" class="border-b border-slate-800/50 hover:bg-slate-800/30 transition group">
+                            <tr v-for="(r, i) in sortedRecords" :key="i" class="border-b border-slate-800/50 hover:bg-slate-800/30 transition">
                                 <td class="py-2 font-mono text-slate-300">{{ r.date }}</td>
                                 <td class="py-2 font-bold text-amber-400">{{ r.weight }}</td>
                                 <td class="py-2 text-right">
-                                    <button @click="deleteRecord(r)" class="text-slate-600 hover:text-rose-500 transition opacity-0 group-hover:opacity-100">
+                                    <button @click="deleteRecord(r)" class="text-slate-600 hover:text-rose-500 transition">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </td>
@@ -173,12 +192,12 @@ createApp({
     data() {
         return {
             loading: false,
+            showConfig: false,
             msg: '',
             msgType: 'info',
-            // --- 您的私人配置 ---
             config: {
-                token: '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', // 已植入
-                gistId: 'bad89a736eb73d5165930e216d568ce4',       // 已植入
+                token: '',
+                gistId: '',
                 start: 80,
                 target: 65
             },
@@ -220,9 +239,14 @@ createApp({
         }
     },
     mounted() {
-        // 页面加载时，直接从 GitHub 拉取数据
-        this.pullData();
-        
+        // 读取本地配置
+        const saved = localStorage.getItem('pacman_github_conf');
+        if(saved) {
+            this.config = JSON.parse(saved);
+            if(this.config.token && this.config.gistId) {
+                this.pullData(); // 自动拉取
+            }
+        }
         this.$nextTick(() => this.initChart());
         window.addEventListener('resize', () => this.chart && this.chart.resize());
     },
@@ -232,26 +256,31 @@ createApp({
             this.msgType = type;
             setTimeout(() => this.msg = '', 3000);
         },
+        
+        saveConfig() {
+            localStorage.setItem('pacman_github_conf', JSON.stringify(this.config));
+            this.showConfig = false;
+            this.pullData();
+        },
 
         // --- 核心：GitHub Gist API 操作 ---
         
         async pullData() {
+            if(!this.config.token || !this.config.gistId) return;
             this.loading = true;
-            console.log('开始拉取数据...');
             
             try {
                 const res = await fetch(`https://api.github.com/gists/${this.config.gistId}`, {
                     headers: {
                         'Authorization': `token ${this.config.token}`,
                         'Accept': 'application/vnd.github.v3+json'
-                    },
-                    cache: 'no-store' // 强制不缓存
+                    }
                 });
                 
                 if(!res.ok) {
                     if(res.status === 404) throw new Error('Gist ID 错误');
-                    if(res.status === 401) throw new Error('Token 无效');
-                    throw new Error(`连接失败 (${res.status})`);
+                    if(res.status === 401) throw new Error('Token 无效或权限不足');
+                    throw new Error('网络错误');
                 }
 
                 const data = await res.json();
@@ -259,15 +288,15 @@ createApp({
                 
                 if(file) {
                     this.records = JSON.parse(file.content);
-                    this.notify('云端数据已同步');
+                    this.notify('云端数据同步成功');
                     this.initChart();
                 } else {
+                    // 如果没有文件，初始化一个
                     this.records = [];
-                    this.notify('云端文件为空，已初始化');
+                    this.notify('初始化新数据文件');
                 }
 
             } catch(e) {
-                console.error(e);
                 this.notify(e.message, 'error');
             } finally {
                 this.loading = false;
@@ -275,9 +304,11 @@ createApp({
         },
 
         async pushData() {
+            if(!this.config.token || !this.config.gistId) return;
             this.loading = true;
 
             try {
+                // 构造 Gist 更新包
                 const payload = {
                     files: {
                         "data.json": {
@@ -296,7 +327,7 @@ createApp({
                     body: JSON.stringify(payload)
                 });
 
-                if(!res.ok) throw new Error('保存失败，请检查Token');
+                if(!res.ok) throw new Error('保存失败，请检查Token权限');
                 
                 this.notify('数据已保存到 GitHub');
 
