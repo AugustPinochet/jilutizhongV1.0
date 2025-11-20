@@ -1,13 +1,13 @@
-这是为您定制的**浅色·全功能增强版**。
+这是一个非常严重的问题，非常抱歉！在简化界面的过程中，我错误地移除了**“仅拉取”**按钮，导致在更换设备或配置时，容易把本地的空数据直接覆盖到云端。
 
-### 🆕 本次更新亮点
-1.  **智能预测完成日期**：根据您的历史减重速度，自动计算预计到达目标体重的日期（显示在左侧面板底部）。
-2.  **累计变化展示**：历史记录列表中新增一列，显示**相比初始体重的变化**（例如 `-2.5`），绿色代表减重，红色代表反弹。
-3.  **吃豆人路径高亮**：优化了视觉效果，Pac-Man **走过的路径（吃掉的格子）** 现在会变成明显的**浅橙色**，进度一目了然，不再看不清。
+这个**紧急修复版**做了以下关键改动：
+1.  **恢复“仅拉取云端数据”按钮**：在设置面板中，您可以先点“拉取”，确保本地有数据了，再进行其他操作。
+2.  **增加“防覆盖”安全锁**：如果本地数据为空（0条记录），程序会**禁止自动上传**或弹出**红色高危警告**，防止您误操作清空云端数据。
+3.  **保留所有增强功能**：预测日期、体重变化差值、吃豆人路径高亮全部保留。
 
 ---
 
-### ☁️ 完整代码 (复制保存为 .html)
+### 🛡️ 安全修复版代码
 
 ```html
 <!DOCTYPE html>
@@ -15,7 +15,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>身材吃豆人 (预测增强版)</title>
+    <title>身材吃豆人 (安全同步版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
@@ -23,7 +23,6 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
     <style>
-        /* 浅色主题基础 */
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
             background-color: #f8fafc; 
@@ -31,7 +30,6 @@
         }
         [v-cloak] { display: none; }
         
-        /* 玻璃质感 */
         .glass {
             background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(12px);
@@ -42,24 +40,14 @@
         .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
 
-        /* --- 吃豆人网格优化 --- */
+        /* --- 吃豆人网格 --- */
         .pac-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 5px; max-width: 320px; margin: 0 auto; }
-        
         .pac-cell { 
             aspect-ratio: 1; display: flex; align-items: center; justify-content: center; 
-            background: #f1f5f9; /* 默认未吃背景 (Slate-100) */
-            border-radius: 6px; 
-            transition: all 0.3s;
+            background: #f1f5f9; border-radius: 6px; transition: all 0.3s;
         }
-        
-        /* 吃过的格子：高亮显示，不再看不清 */
-        .pac-cell.eaten {
-            background-color: #ffedd5; /* Orange-100 */
-            box-shadow: inset 0 0 0 1px #fed7aa; /* Orange-200 */
-        }
-
+        .pac-cell.eaten { background-color: #ffedd5; box-shadow: inset 0 0 0 1px #fed7aa; }
         .dot { width: 6px; height: 6px; background-color: #cbd5e1; border-radius: 50%; }
-        
         .pacman { 
             width: 24px; height: 24px; background: #f59e0b; border-radius: 50%; 
             position: relative; z-index: 10;
@@ -68,9 +56,7 @@
         }
         @keyframes chomp { from { clip-path: polygon(100% 0%, 100% 100%, 50% 50%); } to { clip-path: polygon(100% 20%, 100% 80%, 50% 50%); } }
         
-        .input-light {
-            background: #ffffff; border: 1px solid #e2e8f0; color: #1e293b; transition: all 0.3s;
-        }
+        .input-light { background: #ffffff; border: 1px solid #e2e8f0; color: #1e293b; transition: all 0.3s; }
         .input-light:focus { border-color: #6366f1; outline: none; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
         
         ::-webkit-scrollbar { width: 6px; }
@@ -95,7 +81,7 @@
                 <span class="text-amber-500 mr-2"><i class="fas fa-ghost"></i></span>身材吃豆人
             </h1>
             <p class="text-xs text-slate-500 mt-1 font-medium pl-1">
-                <i class="fab fa-github mr-1"></i> 智能预测 · 云端同步
+                <i class="fab fa-github mr-1"></i> 安全同步版
             </p>
         </div>
         <div class="flex gap-2">
@@ -126,8 +112,15 @@
                     <div><label class="text-xs font-bold text-slate-400">初始体重 (kg)</label><input type="number" v-model.number="config.start" class="w-full input-light rounded-lg px-3 py-2 mt-1 font-bold text-slate-700"></div>
                     <div><label class="text-xs font-bold text-slate-400">目标体重 (kg)</label><input type="number" v-model.number="config.target" class="w-full input-light rounded-lg px-3 py-2 mt-1 font-bold text-indigo-600"></div>
                 </div>
-                <div class="flex justify-end gap-3 mt-2">
-                    <button @click="saveConfigAndPush" class="px-6 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold shadow-lg shadow-indigo-200 transition">保存并同步</button>
+                
+                <!-- 关键修复：分离了拉取和保存按钮 -->
+                <div class="flex flex-col sm:flex-row justify-end gap-3 mt-4 pt-4 border-t border-slate-100">
+                    <button @click="pullData" :disabled="loading" class="px-5 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-bold transition flex items-center justify-center gap-2">
+                        <i class="fas fa-cloud-download-alt"></i> 仅拉取云端数据
+                    </button>
+                    <button @click="saveConfigAndPush" class="px-6 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold shadow-lg shadow-indigo-200 transition flex items-center justify-center gap-2">
+                        <i class="fas fa-save"></i> 保存并同步
+                    </button>
                 </div>
             </div>
         </div>
@@ -140,19 +133,16 @@
         <div class="lg:col-span-5 glass rounded-3xl p-8 flex flex-col items-center relative overflow-hidden border border-white">
             <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-amber-300 via-orange-400 to-rose-400"></div>
             
-            <!-- 当前体重 -->
             <div class="text-center mb-8 mt-2">
                 <p class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Current Weight</p>
                 <div class="text-6xl font-black text-slate-800 tracking-tighter">
                     {{ currentWeight }}<span class="text-xl text-slate-400 ml-1 font-normal">kg</span>
                 </div>
-                <!-- 预测日期 Badge -->
                 <div class="mt-3 inline-flex items-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-xs font-bold border border-indigo-100">
                     <i class="fas fa-calendar-alt"></i> 预计达成: {{ predictedDate }}
                 </div>
             </div>
 
-            <!-- 吃豆人进度条 -->
             <div class="pac-grid mb-8 w-full">
                 <div v-for="n in 100" :key="n" class="pac-cell" :class="{'eaten': n < currentStep}">
                     <div v-if="n === currentStep" class="pacman"></div>
@@ -161,7 +151,6 @@
                 </div>
             </div>
 
-            <!-- 核心指标 -->
             <div class="w-full grid grid-cols-3 gap-4 text-sm px-2 bg-slate-50/80 rounded-2xl py-5 border border-slate-100">
                 <div class="text-center">
                     <div class="text-emerald-500 font-black text-xl">{{ lostJin }}</div>
@@ -181,7 +170,6 @@
         <!-- 右侧：操作区 -->
         <div class="lg:col-span-7 flex flex-col gap-6">
             
-            <!-- 录入 -->
             <div class="glass rounded-3xl p-6 border border-white">
                 <h3 class="text-sm font-bold text-slate-400 mb-4 uppercase tracking-wide flex items-center gap-2">
                     <i class="fas fa-pen-fancy"></i> 今日打卡
@@ -197,7 +185,6 @@
                 </button>
             </div>
 
-            <!-- 图表 -->
             <div class="glass rounded-3xl p-5 h-64 relative border border-white">
                 <div id="chart" class="w-full h-full"></div>
                 <div v-if="records.length === 0" class="absolute inset-0 flex items-center justify-center text-slate-400 text-sm font-medium">
@@ -205,7 +192,6 @@
                 </div>
             </div>
 
-            <!-- 列表 -->
             <div class="glass rounded-3xl p-6 flex-1 overflow-hidden flex flex-col min-h-[250px] border border-white">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wide">历史记录</h3>
@@ -217,7 +203,7 @@
                             <tr class="text-xs text-slate-400 border-b border-slate-100">
                                 <th class="pb-3 pl-2">日期</th>
                                 <th class="pb-3">体重</th>
-                                <th class="pb-3">变化</th> <!-- 新增列 -->
+                                <th class="pb-3">变化</th>
                                 <th class="pb-3 text-right pr-2">操作</th>
                             </tr>
                         </thead>
@@ -225,7 +211,6 @@
                             <tr v-for="(r, i) in sortedRecords" :key="i" class="border-b border-slate-50 hover:bg-slate-50 transition group">
                                 <td class="py-3 pl-2 font-mono text-slate-500">{{ r.date }}</td>
                                 <td class="py-3 font-bold text-slate-800">{{ r.weight }}</td>
-                                <!-- 新增：与初始体重的差值 -->
                                 <td class="py-3 font-bold">
                                     <span :class="getDiffColor(r.weight)" class="px-2 py-1 rounded text-xs bg-opacity-10">
                                         {{ getDiffText(r.weight) }}
@@ -297,26 +282,19 @@ createApp({
         currentStep() {
             return Math.floor(this.progress);
         },
-        // --- 预测完成日期逻辑 ---
         predictedDate() {
             const recs = this.timelineRecords;
             if(recs.length < 2) return '数据不足';
-            
             const first = recs[0];
             const last = recs[recs.length - 1];
             const totalDays = (new Date(last.date) - new Date(first.date)) / (1000 * 3600 * 24);
             const totalLost = first.weight - last.weight;
-
             if(totalDays <= 0 || totalLost <= 0) return '计算中...';
-
-            const dailyRate = totalLost / totalDays; // 每天减多少kg
+            const dailyRate = totalLost / totalDays;
             const remaining = last.weight - this.config.target;
-            
             if(remaining <= 0) return '已达成!';
-
             const daysNeeded = remaining / dailyRate;
             if(daysNeeded > 1000) return '需长期坚持';
-            
             const targetDate = new Date();
             targetDate.setDate(targetDate.getDate() + daysNeeded);
             return targetDate.toISOString().split('T')[0];
@@ -329,13 +307,11 @@ createApp({
             this.config.token = parsed.token || this.config.token;
             this.config.gistId = parsed.gistId || this.config.gistId;
         }
-        
         if(this.config.token && this.config.gistId) {
             this.pullData();
         } else {
             this.showConfig = true;
         }
-
         this.$nextTick(() => this.initChart());
         window.addEventListener('resize', () => this.chart && this.chart.resize());
     },
@@ -346,13 +322,11 @@ createApp({
             setTimeout(() => this.msg = '', 3000);
         },
         toggleConfig() { this.showConfig = !this.showConfig; },
-
-        // 计算差值显示文本
+        
         getDiffText(weight) {
             const diff = weight - this.config.start;
             return diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1);
         },
-        // 计算差值颜色样式
         getDiffColor(weight) {
             const diff = weight - this.config.start;
             if(diff === 0) return 'text-slate-400 bg-slate-100';
@@ -360,21 +334,33 @@ createApp({
         },
 
         async saveConfigAndPush() {
+            // 1. 保存认证信息到本地
             localStorage.setItem('pacman_github_auth', JSON.stringify({ token: this.config.token, gistId: this.config.gistId }));
             this.showConfig = false;
+            
+            // 2. 安全检查：如果本地没有数据，禁止直接推送，防止清空云端
+            if(this.records.length === 0) {
+                this.notify('本地无数据！请先点击"仅拉取"防止覆盖云端', 'error');
+                this.showConfig = true; // 重新打开面板
+                return;
+            }
+
             this.notify('配置已更新，正在同步...');
             await this.pushData();
         },
 
         async pullData() {
-            if(!this.config.token || !this.config.gistId) return;
+            if(!this.config.token || !this.config.gistId) {
+                this.notify('请先填写 Token 和 ID', 'error');
+                return;
+            }
             this.loading = true;
             try {
                 const res = await fetch(`https://api.github.com/gists/${this.config.gistId}`, {
                     headers: { 'Authorization': `token ${this.config.token}` },
                     cache: 'no-store'
                 });
-                if(!res.ok) throw new Error('连接失败');
+                if(!res.ok) throw new Error('连接失败，请检查Token/ID');
                 const data = await res.json();
                 const file = data.files['data.json'];
                 if(file) {
@@ -389,8 +375,10 @@ createApp({
                         }
                     }
                     this.initChart();
+                    this.notify('云端数据拉取成功');
+                } else {
+                    this.notify('云端文件为空或不存在', 'error');
                 }
-                this.notify('数据已同步');
             } catch(e) {
                 this.notify(e.message, 'error');
             } finally {
@@ -400,6 +388,12 @@ createApp({
 
         async pushData() {
             if(!this.config.token || !this.config.gistId) return;
+            
+            // 双重安全锁：如果 records 为空，再次确认
+            if(this.records.length === 0) {
+                if(!confirm("⚠️ 警告：本地没有任何数据！\n继续同步将会清空云端的所有记录。\n\n确定要继续吗？")) return;
+            }
+
             this.loading = true;
             try {
                 const fullData = {
@@ -407,11 +401,12 @@ createApp({
                     records: this.records
                 };
                 const payload = { files: { "data.json": { content: JSON.stringify(fullData, null, 2) } } };
-                await fetch(`https://api.github.com/gists/${this.config.gistId}`, {
+                const res = await fetch(`https://api.github.com/gists/${this.config.gistId}`, {
                     method: 'PATCH',
                     headers: { 'Authorization': `token ${this.config.token}`, 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
+                if(!res.ok) throw new Error('上传失败');
                 this.notify('已同步至云端');
             } catch(e) {
                 this.notify(e.message, 'error');
@@ -429,10 +424,7 @@ createApp({
                 try {
                     const workbook = XLSX.read(e.target.result, { type: 'binary' });
                     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
-                    
-                    let dateIdx = -1, weightIdx = -1, costIdx = -1;
-                    let headerRowIndex = 0;
-
+                    let dateIdx = -1, weightIdx = -1, costIdx = -1, headerRowIndex = 0;
                     for(let i=0; i<Math.min(5, rows.length); i++) {
                         const rowStr = rows[i].join(' ').toLowerCase();
                         if(rowStr.includes('date') || rowStr.includes('日期')) {
@@ -446,12 +438,9 @@ createApp({
                             break;
                         }
                     }
-
                     if(dateIdx === -1 || weightIdx === -1) throw new Error('未找到日期或体重列');
-
                     const newMap = new Map();
                     this.records.forEach(r => newMap.set(r.date, r));
-
                     let count = 0;
                     for(let i = headerRowIndex + 1; i < rows.length; i++) {
                         const row = rows[i];
