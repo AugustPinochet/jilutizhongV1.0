@@ -27,6 +27,9 @@
         }
         .input-field { transition: all 0.3s; }
         .input-field:focus { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2); }
+        
+        /* 按钮点击动画 */
+        .btn-click:active { transform: scale(0.95); }
     </style>
 </head>
 <body class="text-slate-700">
@@ -42,14 +45,14 @@
             <p class="text-slate-500 mt-1 text-sm">支持 Excel 导入导出</p>
         </div>
         <div class="flex flex-wrap gap-2 justify-center md:justify-end">
-            <button @click="downloadTemplate" class="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-lg shadow hover:bg-emerald-100 text-sm transition border border-emerald-200">
+            <button @click="downloadTemplate" class="btn-click px-4 py-2 bg-emerald-50 text-emerald-600 rounded-lg shadow hover:bg-emerald-100 text-sm transition border border-emerald-200">
                 <i class="fas fa-file-excel mr-1"></i> 下载模板
             </button>
-            <label class="px-4 py-2 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 text-sm transition cursor-pointer flex items-center">
+            <label class="btn-click px-4 py-2 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 text-sm transition cursor-pointer flex items-center">
                 <i class="fas fa-file-import mr-1"></i> 导入 Excel
                 <input type="file" @change="importExcel" class="hidden" accept=".xlsx, .xls">
             </label>
-            <button @click="resetData" class="px-4 py-2 bg-rose-100 text-rose-600 rounded-lg shadow hover:bg-rose-200 text-sm transition">
+            <button @click="resetData" class="btn-click px-4 py-2 bg-rose-100 text-rose-600 rounded-lg shadow hover:bg-rose-200 text-sm transition">
                 <i class="fas fa-trash mr-1"></i> 重置
             </button>
         </div>
@@ -57,26 +60,32 @@
 
     <!-- 核心设置区 -->
     <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <!-- 初始设定 -->
-        <div class="glass-panel rounded-2xl p-6 relative overflow-hidden">
+        <!-- 初始设定 (已添加保存按钮) -->
+        <div class="glass-panel rounded-2xl p-6 relative overflow-hidden flex flex-col justify-between">
             <div class="absolute top-0 right-0 w-24 h-24 bg-indigo-100 rounded-full -mr-10 -mt-10 opacity-50"></div>
-            <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">基础设定</h3>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-xs font-medium text-slate-500 mb-1">初始体重 (KG)</label>
-                    <input type="number" v-model.number="settings.initialWeight" @change="saveData" class="input-field w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-indigo-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-slate-500 mb-1">目标体重 (KG)</label>
-                    <input type="number" v-model.number="settings.targetWeight" @change="saveData" class="input-field w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-teal-500">
-                </div>
-                <div class="pt-2 border-t border-slate-100">
-                    <div class="flex justify-between items-center">
-                        <span class="text-xs text-slate-500">目标减重</span>
-                        <span class="font-bold text-indigo-600">{{ targetLossJin }} <span class="text-xs font-normal">斤</span></span>
+            <div>
+                <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">基础设定</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">初始体重 (KG)</label>
+                        <input type="number" v-model.number="settings.initialWeight" class="input-field w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">目标体重 (KG)</label>
+                        <input type="number" v-model.number="settings.targetWeight" class="input-field w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-teal-500">
+                    </div>
+                    <div class="pt-2 border-t border-slate-100">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-slate-500">目标减重</span>
+                            <span class="font-bold text-indigo-600">{{ targetLossJin }} <span class="text-xs font-normal">斤</span></span>
+                        </div>
                     </div>
                 </div>
             </div>
+            <!-- 新增保存按钮 -->
+            <button @click="saveSettings" class="btn-click mt-4 w-full bg-slate-800 text-white text-sm font-medium py-2 rounded-lg hover:bg-slate-700 transition shadow-md">
+                <i class="fas fa-save mr-1"></i> 确认并保存设定
+            </button>
         </div>
 
         <!-- 核心指标卡片 -->
@@ -153,7 +162,7 @@
                     折合: <span class="font-bold text-slate-600">{{ (newRecord.weight * 2).toFixed(1) }}</span> 斤
                 </div>
 
-                <button type="submit" class="w-full bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-200 transition transform active:scale-95">
+                <button type="submit" class="btn-click w-full bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-200 transition">
                     记录数据
                 </button>
             </form>
@@ -312,6 +321,11 @@ const app = createApp({
         });
     },
     methods: {
+        // 新增：手动保存设置
+        saveSettings() {
+            this.saveData();
+            alert('基础设定已成功保存！图表和统计数据已更新。');
+        },
         addRecord() {
             if (!this.newRecord.weight || !this.newRecord.date) return;
             const existingIndex = this.records.findIndex(r => r.date === this.newRecord.date);
@@ -382,7 +396,6 @@ const app = createApp({
                 }
             } catch (e) { this.records = []; }
         },
-        // Excel 导入逻辑
         importExcel(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -391,7 +404,7 @@ const app = createApp({
             reader.onload = (e) => {
                 try {
                     const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array', cellDates: true }); // cellDates: true 自动处理日期
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
                     const jsonSheet = XLSX.utils.sheet_to_json(worksheet);
@@ -405,9 +418,7 @@ const app = createApp({
                     let successCount = 0;
 
                     jsonSheet.forEach(row => {
-                        // 模糊匹配列名 (支持中文、英文、大小写)
                         let dateVal, weightVal, costVal;
-                        
                         for (let key in row) {
                             const k = key.toLowerCase().trim();
                             if (k.includes('date') || k.includes('日期') || k.includes('时间')) dateVal = row[key];
@@ -416,14 +427,11 @@ const app = createApp({
                         }
 
                         if (dateVal && weightVal) {
-                            // 格式化日期
                             let finalDate;
                             if (dateVal instanceof Date) {
-                                // 调整时区偏差
                                 const offset = dateVal.getTimezoneOffset() * 60000;
                                 finalDate = new Date(dateVal.getTime() - offset).toISOString().split('T')[0];
                             } else {
-                                // 尝试解析字符串
                                 finalDate = new Date(dateVal).toISOString().split('T')[0];
                             }
 
@@ -443,7 +451,6 @@ const app = createApp({
                         if (confirm(`解析成功！发现 ${successCount} 条有效记录。\n是否覆盖当前记录？(点击“取消”则追加)`)) {
                             this.records = newRecords;
                         } else {
-                            // 追加模式：去重
                             const existingDates = new Set(this.records.map(r => r.date));
                             newRecords.forEach(r => {
                                 if (!existingDates.has(r.date)) {
@@ -463,7 +470,7 @@ const app = createApp({
                 }
             };
             reader.readAsArrayBuffer(file);
-            event.target.value = ''; // 重置input
+            event.target.value = '';
         },
         downloadTemplate() {
             const ws = XLSX.utils.json_to_sheet([
