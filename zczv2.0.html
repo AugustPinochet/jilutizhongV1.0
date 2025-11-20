@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>减重与成本追踪看板</title>
+    <title>减重与成本追踪看板 Pro</title>
     <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 引入 Vue 3 -->
@@ -16,6 +16,10 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
         body { font-family: 'Noto Sans SC', sans-serif; background-color: #f3f4f6; }
+        
+        /* 防止Vue加载前显示{{}}乱码 */
+        [v-cloak] { display: none !important; }
+
         .glass-panel {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
@@ -33,7 +37,7 @@
 </head>
 <body class="text-slate-700">
 
-<div id="app" class="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
+<div id="app" v-cloak class="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
     
     <!-- 顶部标题 -->
     <header class="mb-8 flex flex-col md:flex-row justify-between items-center">
@@ -45,12 +49,15 @@
         </div>
         <div class="mt-4 md:mt-0 flex gap-2">
             <button @click="exportData" class="px-4 py-2 bg-white text-slate-600 rounded-lg shadow hover:bg-slate-50 text-sm transition">
-                <i class="fas fa-download mr-1"></i> 导出数据
+                <i class="fas fa-download mr-1"></i> 导出
             </button>
             <label class="px-4 py-2 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 text-sm transition cursor-pointer">
-                <i class="fas fa-upload mr-1"></i> 导入数据
+                <i class="fas fa-upload mr-1"></i> 导入
                 <input type="file" @change="importData" class="hidden" accept=".json">
             </label>
+            <button @click="resetData" class="px-4 py-2 bg-rose-100 text-rose-600 rounded-lg shadow hover:bg-rose-200 text-sm transition">
+                <i class="fas fa-trash mr-1"></i> 重置
+            </button>
         </div>
     </header>
 
@@ -227,7 +234,7 @@
 <script>
 const { createApp } = Vue;
 
-createApp({
+const app = createApp({
     data() {
         return {
             settings: {
@@ -254,6 +261,7 @@ createApp({
         },
         currentWeight() {
             if (this.records.length === 0) return this.settings.initialWeight;
+            // 获取最新日期记录的体重
             return this.timelineRecords[this.timelineRecords.length - 1].weight;
         },
         targetLossJin() {
@@ -272,7 +280,7 @@ createApp({
         },
         costPerJin() {
             const lost = parseFloat(this.lostJin);
-            if (lost <= 0) return "N/A";
+            if (lost <= 0) return "0.0";
             return (this.totalCost / lost).toFixed(1);
         },
         progressPercent() {
@@ -291,9 +299,7 @@ createApp({
             const daysDiff = (new Date(last.date) - new Date(first.date)) / (1000 * 3600 * 24);
             if (daysDiff === 0) return 0;
 
-            // 计算总共减掉的斤数 (相对于初始设置，或者相对于第一条记录？这里用相对于第一条记录更准确实时)
-            // 但为了逻辑闭环，我们计算：(第一条记录体重 - 当前体重) / 天数
-            // 如果第一条记录就是初始体重，那更好。
+            // 计算区间内的减重速度
             const weightDiffJin = (first.weight - last.weight) * 2;
             
             return weightDiffJin > 0 ? (weightDiffJin / daysDiff).toFixed(2) : 0;
@@ -348,7 +354,6 @@ createApp({
             
             // 重置花费，保留日期为今天
             this.newRecord.cost = '';
-            // this.newRecord.weight = ''; // 可选：是否清空体重
         },
         deleteRecord(id) {
             if(confirm('确定删除这条记录吗？')) {
@@ -357,8 +362,14 @@ createApp({
                 this.updateChart();
             }
         },
+        resetData() {
+            if(confirm('⚠️ 警告：这将清空所有记录！确定要重置吗？')) {
+                this.records = [];
+                this.saveData();
+                this.updateChart();
+            }
+        },
         getChange(index) {
-            // 列表是倒序的，index+1 是前一天
             const current = this.sortedRecords[index];
             const prev = this.sortedRecords[index + 1];
             
@@ -391,11 +402,17 @@ createApp({
             this.updateChart();
         },
         loadData() {
-            const saved = localStorage.getItem('weightTrackerData');
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                this.settings = parsed.settings || this.settings;
-                this.records = parsed.records || [];
+            try {
+                const saved = localStorage.getItem('weightTrackerData');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    this.settings = parsed.settings || this.settings;
+                    this.records = parsed.records || [];
+                }
+            } catch (e) {
+                console.error("读取数据失败", e);
+                // 防止崩溃
+                this.records = [];
             }
         },
         exportData() {
@@ -429,7 +446,6 @@ createApp({
                 }
             };
             reader.readAsText(file);
-            // Reset input
             event.target.value = '';
         },
         initChart() {
@@ -519,7 +535,8 @@ createApp({
                         markLine: {
                             data: [{ yAxis: this.settings.targetWeight, name: '目标' }],
                             lineStyle: { color: '#14b8a6', type: 'dashed', width: 2 },
-                            label: { formatter: '目标 {c}kg' }
+                            label: { formatter: '目标 {c}kg' },
+                            symbol: ['none', 'none']
                         }
                     },
                     {
@@ -539,6 +556,9 @@ createApp({
         }
     }
 });
+
+// 关键修复：挂载应用
+app.mount('#app');
 </script>
 </body>
 </html>
