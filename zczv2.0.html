@@ -130,4 +130,93 @@ createApp({
             
             // 使用 gviz 接口，强制不缓存
             const url = `https://docs.google.com/spreadsheets/d/${this.sheetId}/gviz/tq?tqx=out:csv&sheet=Sheet1&_t=${Date.now()}`;
-            this.addLog(`请求 URL: <a href="${url}" target="_blank" class="underline text-blue-400">点击此处
+            this.addLog(`请求 URL: <a href="${url}" target="_blank" class="underline text-blue-400">点击此处在浏览器中测试</a>`);
+
+            try {
+                const resp = await fetch(url);
+                
+                if (resp.status === 403) throw new Error('❌ 权限错误 (403)：请将表格权限设为"知道链接的任何人" (Anyone with the link)');
+                if (resp.status === 404) throw new Error('❌ 找不到表格 (404)：ID 错误或表格已删除');
+                if (!resp.ok) throw new Error(`❌ 网络错误：状态码 ${resp.status}`);
+
+                this.addLog('✅ 连接成功，正在解析 CSV...');
+                const csvText = await resp.text();
+                this.addLog(`收到数据长度: ${csvText.length} 字符`);
+                
+                // 解析
+                const workbook = XLSX.read(csvText, { type: 'string' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+                this.addLog(`📊 解析出 ${jsonData.length} 行数据`);
+                
+                if (jsonData.length === 0) throw new Error('表格是空的');
+
+                // 寻找表头
+                let dateIdx = -1, weightIdx = -1, costIdx = -1;
+                let headerRow = -1;
+
+                // 遍历前5行找表头
+                for(let i=0; i<Math.min(5, jsonData.length); i++) {
+                    const rowStr = jsonData[i].join(' ').toLowerCase();
+                    this.addLog(`🔍 扫描第 ${i+1} 行: ${rowStr}`);
+                    
+                    if (rowStr.includes('日期') || rowStr.includes('date')) {
+                        headerRow = i;
+                        jsonData[i].forEach((cell, idx) => {
+                            const c = String(cell).trim();
+                            if(c === '日期' || c === 'Date') dateIdx = idx;
+                            if(c === '体重' || c === 'Weight') weightIdx = idx;
+                            if(c === '花费' || c === 'Cost') costIdx = idx;
+                        });
+                        break;
+                    }
+                }
+
+                if (headerRow === -1 || dateIdx === -1 || weightIdx === -1) {
+                    throw new Error(`❌ 未找到表头！<br>请确保第一行包含：<strong>日期</strong> 和 <strong>体重</strong>`);
+                }
+
+                this.addLog(`✅ 找到表头在第 ${headerRow+1} 行: 日期(列${dateIdx}), 体重(列${weightIdx})`);
+
+                // 提取数据
+                let successCount = 0;
+                for(let i = headerRow + 1; i < jsonData.length; i++) {
+                    const row = jsonData[i];
+                    if(!row[dateIdx]) continue;
+                    
+                    // 简单的日期处理
+                    let dateStr = row[dateIdx];
+                    // Excel 数字日期处理
+                    if(typeof dateStr === 'number') {
+                         const d = new Date((dateStr - (25567 + 2)) * 86400 * 1000);
+                         dateStr = d.toISOString().split('T')[0];
+                    }
+
+                    this.records.push({
+                        date: dateStr,
+                        weight: row[weightIdx],
+                        cost: costIdx !== -1 ? row[costIdx] : 0
+                    });
+                    successCount++;
+                }
+
+                this.statusType = 'success';
+                this.statusTitle = '同步成功！';
+                this.statusMsg = `成功读取 ${successCount} 条有效数据。`;
+                this.addLog(`🎉 完成！共 ${successCount} 条记录。`);
+
+            } catch (e) {
+                this.statusType = 'error';
+                this.statusTitle = '同步失败';
+                this.statusMsg = e.message.replace(/<[^>]*>/g, ''); // 去除HTML标签显示纯文本
+                this.addLog(e.message);
+            } finally {
+                this.loading = false;
+            }
+        }
+    }
+}).mount('#app');
+</script>
+</body>
+</html>
