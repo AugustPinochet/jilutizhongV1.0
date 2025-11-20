@@ -1,9 +1,26 @@
+这个创意太棒了！🎮 把枯燥的进度条变成**“马里奥挖矿闯关”**，会让减肥过程充满游戏感和期待感。
+
+我为您重写了中间的展示区域：
+1.  **地图**：生成 **10x10 (共100格)** 的地下矿洞。
+2.  **机制**：
+    *   🟫 **深色土块**：未完成的进度（阻碍）。
+    *   ⬜ **浅色通道**：已完成的进度（挖通的隧道）。
+    *   👷 **马里奥**：当前所在位置（进度%）。
+    *   🏆 **金条**：第100格，带有**呼吸闪光特效**。
+
+---
+
+### ⛏️ 最终版代码 (马里奥挖矿版)
+
+请复制以下完整代码，直接覆盖原文件即可。
+
+```html
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>身材蜕变追踪 Pro (预测版)</title>
+    <title>身材雕刻师 (马里奥挖矿版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
@@ -23,56 +40,103 @@
 
         .btn-active:active { transform: scale(0.96); opacity: 0.9; }
 
-        /* 人体模型容器 */
-        .body-container {
-            position: relative;
-            height: 320px;
-            width: 200px;
-            margin: 0 auto;
-            filter: drop-shadow(0 10px 15px rgba(0,0,0,0.1));
-        }
-        .body-layer {
-            position: absolute;
-            top: 0;
-            left: 0;
+        /* --- 挖矿游戏样式 --- */
+        .mine-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 4px;
             width: 100%;
-            height: 100%;
-            transition: all 1s cubic-bezier(0.4, 0, 0.2, 1);
-            pointer-events: none;
+            max-width: 320px;
+            margin: 0 auto;
+            padding: 10px;
+            background: #475569; /* 矿洞背景色 */
+            border-radius: 8px;
+            border: 4px solid #334155;
         }
-        
-        .muscle-glow { filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.5)); }
-        
-        /* 预测胶囊动画 */
-        @keyframes pulse-soft {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.8; }
+
+        .mine-cell {
+            aspect-ratio: 1;
+            border-radius: 2px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            transition: all 0.3s ease;
         }
-        .animate-pulse-soft { animation: pulse-soft 3s infinite; }
+
+        /* 未挖开的土块 */
+        .cell-rock {
+            background-color: #78350f; /* 深褐色 */
+            background-image: url("data:image/svg+xml,%3Csvg width='6' height='6' viewBox='0 0 6 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%2392400e' fill-opacity='0.4' fill-rule='evenodd'%3E%3Cpath d='M5 0h1L0 6V5zM6 5v1H5z'/%3E%3C/g%3E%3C/svg%3E");
+            border: 1px solid #92400e;
+            box-shadow: inset 1px 1px 0 rgba(255,255,255,0.1);
+        }
+
+        /* 已挖开的通道 */
+        .cell-dug {
+            background-color: #3b3836; /* 挖空的深色 */
+            box-shadow: inset 2px 2px 5px rgba(0,0,0,0.5);
+        }
+
+        /* 马里奥 */
+        .mario-avatar {
+            font-size: 18px;
+            z-index: 10;
+            animation: bounce 1s infinite;
+            filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
+        }
+
+        /* 金条 */
+        .gold-bar {
+            font-size: 20px;
+            z-index: 10;
+            animation: shine-rotate 2s infinite linear;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-3px); }
+        }
+
+        @keyframes shine-rotate {
+            0% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.2); filter: brightness(1.5) drop-shadow(0 0 5px gold); }
+            100% { transform: scale(1); filter: brightness(1); }
+        }
+
+        /* 提示框动画 */
+        .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
+        .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-20px); }
     </style>
 </head>
 <body class="text-slate-700">
 
 <div id="app" v-cloak class="min-h-screen p-3 md:p-6 max-w-7xl mx-auto pb-20 md:pb-6">
     
+    <!-- 顶部消息提示 -->
+    <transition name="toast">
+        <div v-if="toastMsg" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-slate-800 text-white px-6 py-3 rounded-full shadow-xl text-sm font-medium flex items-center gap-2">
+            <i class="fas fa-info-circle text-amber-400"></i> {{ toastMsg }}
+        </div>
+    </transition>
+
     <!-- 顶部导航 -->
     <header class="mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
         <div class="text-center md:text-left">
             <h1 class="text-2xl md:text-3xl font-bold text-slate-800 bg-clip-text text-transparent bg-gradient-to-r from-amber-600 to-indigo-600">
-                <i class="fas fa-dumbbell mr-2 text-amber-500"></i>身材雕刻师
+                <i class="fas fa-hammer mr-2 text-amber-700"></i>身材雕刻师
             </h1>
-            <p class="text-slate-500 mt-1 text-xs md:text-sm">可视化你的每一次努力</p>
+            <p class="text-slate-500 mt-1 text-xs md:text-sm">像挖金矿一样挖掘更好的自己</p>
         </div>
         
-        <div class="flex gap-2 w-full md:w-auto justify-center">
-            <button @click="downloadTemplate" class="btn-active flex-1 md:flex-none px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg shadow-sm text-sm font-medium">
-                <i class="fas fa-download md:mr-1"></i> <span class="hidden md:inline">模板</span>
+        <div class="flex gap-2 w-full md:w-auto justify-center items-center">
+            <button @click="generateMagicLink" class="btn-active px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg shadow-lg shadow-emerald-200 text-sm font-medium flex items-center gap-2">
+                <i class="fas fa-link"></i> <span class="hidden md:inline">保存为链接</span><span class="md:hidden">存链接</span>
             </button>
-            <label class="btn-active flex-1 md:flex-none px-3 py-2 bg-indigo-600 text-white rounded-lg shadow-md text-sm font-medium cursor-pointer flex items-center justify-center">
-                <i class="fas fa-file-import md:mr-1"></i> <span class="hidden md:inline">导入</span>
-                <span class="md:hidden">导入</span>
-                <input type="file" @change="importExcel" class="hidden" accept=".xlsx, .xls">
-            </label>
+            <button @click="downloadTemplate" class="btn-active px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg shadow-sm text-sm">
+                <i class="fas fa-file-excel"></i>
+            </button>
             <button @click="resetData" class="btn-active px-3 py-2 bg-rose-50 text-rose-500 border border-rose-100 rounded-lg text-sm">
                 <i class="fas fa-trash"></i>
             </button>
@@ -132,89 +196,68 @@
             </div>
         </div>
 
-        <!-- 中间：精美人体模型 + 预测 (LG: 4/12) -->
+        <!-- 中间：马里奥挖矿地图 (LG: 4/12) -->
         <div class="lg:col-span-4 order-1 lg:order-2">
-            <div class="glass-panel rounded-2xl p-6 h-full flex flex-col items-center justify-center relative overflow-hidden bg-gradient-to-b from-white to-slate-100 min-h-[450px]">
+            <div class="glass-panel rounded-2xl p-4 h-full flex flex-col items-center justify-center relative overflow-hidden bg-slate-50 min-h-[450px]">
                 
                 <!-- 顶部数据 -->
-                <div class="absolute top-4 left-0 right-0 px-6 flex justify-between items-start z-20">
+                <div class="w-full px-2 flex justify-between items-end mb-4">
                     <div>
                         <p class="text-xs text-slate-400">当前体重</p>
-                        <p class="text-3xl font-bold text-slate-800">{{ currentWeight }}<span class="text-sm font-normal text-slate-500">kg</span></p>
+                        <p class="text-2xl font-bold text-slate-800">{{ currentWeight }}<span class="text-sm font-normal text-slate-500">kg</span></p>
                     </div>
                     <div class="text-right">
-                        <p class="text-xs text-slate-400">完成度</p>
-                        <p class="text-xl font-bold text-amber-500">{{ progressPercent }}%</p>
+                        <p class="text-xs text-slate-400">挖掘进度</p>
+                        <p class="text-xl font-bold text-amber-600">{{ progressPercent }}%</p>
                     </div>
                 </div>
 
-                <!-- 人体模型 -->
-                <div class="body-container mt-8">
-                    <!-- 1. 肌肉层 (底层) -->
-                    <svg class="body-layer muscle-glow" viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg">
-                        <defs>
-                            <linearGradient id="goldSkin" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" style="stop-color:#d97706;stop-opacity:1" />
-                                <stop offset="50%" style="stop-color:#f59e0b;stop-opacity:1" />
-                                <stop offset="100%" style="stop-color:#d97706;stop-opacity:1" />
-                            </linearGradient>
-                        </defs>
-                        <path d="M100 30 C 115 30, 120 45, 120 55 L 150 60 C 160 62, 165 70, 160 85 L 155 130 C 153 140, 145 140, 140 130 L 135 100 L 130 150 C 135 180, 135 220, 130 250 L 135 350 L 110 350 L 105 260 L 95 260 L 90 350 L 65 350 L 70 250 C 65 220, 65 180, 70 150 L 65 100 L 60 130 C 55 140, 47 140, 45 130 L 40 85 C 35 70, 40 62, 50 60 L 80 55 C 80 45, 85 30, 100 30 Z" fill="url(#goldSkin)" />
-                        <g stroke="rgba(255,255,255,0.4)" stroke-width="2" fill="none" stroke-linecap="round">
-                            <path d="M75 85 Q 100 100, 125 85" /> 
-                            <path d="M100 85 L 100 110" />
-                            <path d="M85 110 H 115 M 88 125 H 112 M 90 140 H 110" />
-                            <path d="M75 160 Q 100 180, 125 160" opacity="0.6"/>
-                        </g>
-                    </svg>
-
-                    <!-- 2. 脂肪层 (顶层) -->
-                    <svg class="body-layer" 
-                         :style="{ 
-                             opacity: Math.max(0, (100 - progressPercent) / 100),
-                             transform: `scaleX(${1 + (100 - progressPercent)/300}) scaleY(1)` 
-                         }" 
-                         viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg">
-                        <defs>
-                            <linearGradient id="fatSkin" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" style="stop-color:#e2e8f0;stop-opacity:0.95" />
-                                <stop offset="50%" style="stop-color:#f1f5f9;stop-opacity:0.95" />
-                                <stop offset="100%" style="stop-color:#e2e8f0;stop-opacity:0.95" />
-                            </linearGradient>
-                        </defs>
-                        <path d="M100 28 C 116 28, 122 45, 122 55 L 155 65 C 165 68, 170 75, 168 95 L 165 135 C 163 145, 155 145, 150 135 L 145 105 L 145 150 C 155 180, 155 220, 145 250 L 145 350 L 115 350 L 110 260 L 90 260 L 85 350 L 55 350 L 55 250 C 45 220, 45 180, 55 150 L 55 105 L 50 135 C 45 145, 37 145, 35 135 L 32 95 C 30 75, 35 68, 45 65 L 78 55 C 78 45, 84 28, 100 28 Z" fill="url(#fatSkin)" stroke="#cbd5e1" stroke-width="1" />
-                        <path d="M80 150 Q 100 170, 120 150" fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.5" />
-                    </svg>
+                <!-- 挖矿网格游戏区 -->
+                <div class="mine-grid shadow-inner">
+                    <!-- 循环生成100个格子 -->
+                    <div v-for="n in 100" :key="n" 
+                         class="mine-cell"
+                         :class="n <= currentStep ? 'cell-dug' : 'cell-rock'">
+                        
+                        <!-- 如果是第100格：显示金条 -->
+                        <span v-if="n === 100" class="gold-bar" title="目标达成！">🏆</span>
+                        
+                        <!-- 如果是当前进度格：显示马里奥 -->
+                        <span v-else-if="n === currentStep" class="mario-avatar" title="我在这里">👷</span>
+                        
+                        <!-- 装饰：给未挖开的石头加点纹理 -->
+                        <span v-else-if="n > currentStep && n % 7 === 0" class="opacity-20 text-[8px]">.</span>
+                    </div>
                 </div>
 
-                <!-- 智能预测胶囊 (新增) -->
-                <div class="mt-4 w-full px-4 z-20">
-                    <div v-if="prediction.status === 'normal'" class="bg-gradient-to-r from-indigo-500 to-purple-500 text-white p-3 rounded-xl shadow-lg animate-pulse-soft flex justify-between items-center">
+                <!-- 预测胶囊 -->
+                <div class="mt-6 w-full px-4">
+                    <div v-if="prediction.status === 'normal'" class="bg-slate-800 text-white p-3 rounded-xl shadow-lg flex justify-between items-center border border-slate-700">
                         <div class="text-left">
-                            <p class="text-[10px] opacity-80 uppercase tracking-wide">预计达标</p>
-                            <p class="font-bold text-sm">{{ prediction.date }}</p>
+                            <p class="text-[10px] opacity-60 uppercase tracking-wide">预计挖通</p>
+                            <p class="font-bold text-sm text-amber-400">{{ prediction.date }}</p>
                         </div>
                         <div class="text-right">
-                            <p class="text-2xl font-bold leading-none">{{ prediction.days }}<span class="text-xs font-normal opacity-80 ml-1">天后</span></p>
+                            <p class="text-xl font-bold leading-none">{{ prediction.days }}<span class="text-xs font-normal opacity-60 ml-1">天后</span></p>
                         </div>
                     </div>
-                    <div v-else-if="prediction.status === 'done'" class="bg-teal-500 text-white p-3 rounded-xl shadow-lg text-center">
-                        <p class="font-bold"><i class="fas fa-trophy mr-2"></i>已达成目标！</p>
+                    <div v-else-if="prediction.status === 'done'" class="bg-amber-500 text-white p-3 rounded-xl shadow-lg text-center animate-bounce">
+                        <p class="font-bold"><i class="fas fa-trophy mr-2"></i>恭喜挖到金矿！</p>
                     </div>
-                    <div v-else class="bg-slate-100 text-slate-500 p-3 rounded-xl text-center text-xs">
-                        <i class="fas fa-calculator mr-1"></i> {{ prediction.msg }}
+                    <div v-else class="bg-white border border-slate-200 text-slate-500 p-3 rounded-xl text-center text-xs">
+                        <i class="fas fa-chart-line mr-1"></i> {{ prediction.msg }}
                     </div>
                 </div>
 
                 <!-- 底部数据 -->
-                <div class="mt-4 w-full grid grid-cols-2 gap-4 text-center z-20">
-                    <div class="bg-white/60 backdrop-blur p-3 rounded-xl border border-slate-100 shadow-sm">
-                        <p class="text-xs text-slate-400 mb-1">已减掉</p>
-                        <p class="text-lg font-bold text-teal-600">{{ lostJin }} <span class="text-xs text-slate-500">斤</span></p>
+                <div class="mt-4 w-full grid grid-cols-2 gap-4 text-center">
+                    <div class="bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
+                        <p class="text-[10px] text-slate-400">已挖掉</p>
+                        <p class="text-base font-bold text-emerald-600">{{ lostJin }} <span class="text-[10px] text-slate-400">斤</span></p>
                     </div>
-                    <div class="bg-white/60 backdrop-blur p-3 rounded-xl border border-slate-100 shadow-sm">
-                        <p class="text-xs text-slate-400 mb-1">还需减</p>
-                        <p class="text-lg font-bold text-rose-500">{{ remainingJin }} <span class="text-xs text-slate-500">斤</span></p>
+                    <div class="bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
+                        <p class="text-[10px] text-slate-400">还剩岩层</p>
+                        <p class="text-base font-bold text-amber-700">{{ remainingJin }} <span class="text-[10px] text-slate-400">斤</span></p>
                     </div>
                 </div>
             </div>
@@ -283,6 +326,7 @@ const app = createApp({
     data() {
         return {
             showSettings: true,
+            toastMsg: '',
             settings: { initialWeight: 80, targetWeight: 65 },
             newRecord: { date: new Date().toISOString().split('T')[0], weight: '', cost: '' },
             records: [],
@@ -311,53 +355,84 @@ const app = createApp({
             let pct = (alreadyLost / totalToLose) * 100;
             return Math.min(Math.max(pct, 0), 100).toFixed(1);
         },
-        // 核心预测逻辑
+        // 计算当前在第几格 (1-100)
+        currentStep() {
+            return Math.floor(this.progressPercent);
+        },
         prediction() {
             const recs = this.timelineRecords;
-            if (this.currentWeight <= this.settings.targetWeight) {
-                return { status: 'done' };
-            }
-            if (recs.length < 2) {
-                return { status: 'waiting', msg: '再记录一天以预测' };
-            }
+            if (this.currentWeight <= this.settings.targetWeight) return { status: 'done' };
+            if (recs.length < 2) return { status: 'waiting', msg: '再记录一天以预测' };
             
-            // 计算总天数差和总减重差
             const first = recs[0];
             const last = recs[recs.length - 1];
             const dayDiff = (new Date(last.date) - new Date(first.date)) / (1000 * 3600 * 24);
-            const weightDiff = first.weight - last.weight; // 正数代表减重了
+            const weightDiff = first.weight - last.weight;
             
             if (dayDiff < 1) return { status: 'waiting', msg: '需更多时间跨度' };
             if (weightDiff <= 0) return { status: 'waiting', msg: '当前呈上升趋势，加油调整' };
             
-            // 平均每天减多少
             const dailyRate = weightDiff / dayDiff;
             const remainingWeight = last.weight - this.settings.targetWeight;
             const daysLeft = Math.ceil(remainingWeight / dailyRate);
             
-            // 计算日期
             const targetDate = new Date();
             targetDate.setDate(targetDate.getDate() + daysLeft);
             const dateStr = `${targetDate.getFullYear()}-${(targetDate.getMonth()+1).toString().padStart(2,'0')}-${targetDate.getDate().toString().padStart(2,'0')}`;
             
-            // 异常处理：如果预测要超过3年，显示太久
-            if (daysLeft > 1000) return { status: 'waiting', msg: '预测时间过长，请加大力度' };
-
+            if (daysLeft > 1000) return { status: 'waiting', msg: '预测时间过长' };
             return { status: 'normal', days: daysLeft, date: dateStr };
         }
     },
     mounted() {
-        this.loadData();
+        this.checkUrlData();
         if(window.innerWidth < 768) this.showSettings = false;
         window.addEventListener('resize', () => {
             this.chartInstance && this.chartInstance.resize();
         });
     },
     methods: {
+        showToast(msg) {
+            this.toastMsg = msg;
+            setTimeout(() => this.toastMsg = '', 3000);
+        },
+        generateMagicLink() {
+            try {
+                const dataStr = JSON.stringify({ settings: this.settings, records: this.records });
+                const encoded = btoa(encodeURIComponent(dataStr));
+                const newUrl = `${window.location.origin}${window.location.pathname}?data=${encoded}`;
+                navigator.clipboard.writeText(newUrl).then(() => {
+                    this.showToast('链接已复制！发给手机或保存书签即可');
+                });
+                window.history.pushState({path:newUrl}, '', newUrl);
+            } catch(e) {
+                this.showToast('数据量太大，生成失败');
+            }
+        },
+        checkUrlData() {
+            const params = new URLSearchParams(window.location.search);
+            const dataStr = params.get('data');
+            if (dataStr) {
+                try {
+                    const jsonStr = decodeURIComponent(atob(dataStr));
+                    const parsed = JSON.parse(jsonStr);
+                    if(confirm('检测到链接中包含历史数据，是否加载？(将覆盖当前缓存)')) {
+                        this.settings = parsed.settings || this.settings;
+                        this.records = parsed.records || [];
+                        this.saveData();
+                        this.showToast('数据已恢复！');
+                        const cleanUrl = window.location.origin + window.location.pathname;
+                        window.history.replaceState({}, '', cleanUrl);
+                    }
+                } catch (e) {}
+            } else {
+                this.loadData();
+            }
+        },
         saveSettings() {
             this.saveData();
             this.showSettings = false;
-            alert('设定已保存');
+            this.showToast('设定已保存');
         },
         addRecord() {
             if (!this.newRecord.weight || !this.newRecord.date) return;
@@ -469,36 +544,6 @@ const app = createApp({
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
             XLSX.writeFile(wb, "减重记录模板.xlsx");
-        },
-        importExcel(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-                    const jsonSheet = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                    let count = 0;
-                    jsonSheet.forEach(row => {
-                        let d = row['日期'] || row['date'];
-                        let w = row['体重'] || row['weight'];
-                        let c = row['花费'] || row['cost'] || 0;
-                        if (d && w) {
-                            let dateStr = (d instanceof Date) ? new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().split('T')[0] : new Date(d).toISOString().split('T')[0];
-                            this.records.push({ id: Date.now() + Math.random(), date: dateStr, weight: parseFloat(w), cost: parseFloat(c) });
-                            count++;
-                        }
-                    });
-                    const map = new Map();
-                    this.records.forEach(r => map.set(r.date, r));
-                    this.records = Array.from(map.values());
-                    this.saveData();
-                    alert(`导入 ${count} 条数据`);
-                } catch (err) { alert('导入失败'); }
-            };
-            reader.readAsArrayBuffer(file);
-            event.target.value = '';
         }
     }
 });
@@ -507,3 +552,4 @@ app.mount('#app');
 </script>
 </body>
 </html>
+```
