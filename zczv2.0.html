@@ -1,12 +1,31 @@
+这是一个集成了 **Excel 导入功能** 的最终版本。
+
+### ✨ 新增功能说明
+1.  **一键导入 Excel**：支持 `.xlsx` 或 `.csv` 文件。
+2.  **智能合并策略**：
+    *   如果 Excel 里的日期在现有记录中**已存在** -> **覆盖**该日期的体重/花费（以 Excel 为准）。
+    *   如果 Excel 里的日期**不存在** -> **新增**这条记录。
+3.  **自动云同步**：导入完成后，程序会**立即自动**将最新数据上传覆盖到 GitHub Gist，无需手动保存。
+
+### 📋 Excel 格式要求
+第一行表头包含：`日期` (或 Date)、`体重` (或 Weight)。可选：`花费`。
+
+---
+
+### 🚀 完整代码 (复制保存为 .html)
+
+```html
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>身材吃豆人 (GitHub云同步版)</title>
+    <title>身材吃豆人 (Excel增强版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <!-- 引入 Excel 解析库 SheetJS -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
     <style>
@@ -38,6 +57,11 @@
             transition: all 0.3s;
         }
         .input-dark:focus { border-color: #6366f1; outline: none; box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2); }
+        
+        /* 滚动条美化 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
     </style>
 </head>
 <body>
@@ -45,7 +69,7 @@
 <div id="app" v-cloak class="min-h-screen p-4 max-w-4xl mx-auto pb-20">
     
     <!-- 顶部通知 -->
-    <div v-if="msg" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-xl text-sm font-bold flex items-center gap-2"
+    <div v-if="msg" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-xl text-sm font-bold flex items-center gap-2 transition-all duration-300"
          :class="msgType === 'success' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'">
         <i class="fas" :class="msgType === 'success' ? 'fa-check' : 'fa-exclamation-circle'"></i> {{ msg }}
     </div>
@@ -56,41 +80,23 @@
             <h1 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">
                 <i class="fas fa-ghost mr-2"></i>身材吃豆人
             </h1>
-            <p class="text-xs text-slate-500 mt-1">GitHub Gist 云同步版</p>
+            <p class="text-xs text-slate-500 mt-1">
+                <i class="fab fa-github"></i> 云端同步 + Excel 导入
+            </p>
         </div>
-        <button @click="showConfig = !showConfig" class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition">
-            <i class="fas fa-cog text-slate-400"></i>
-        </button>
-    </header>
+        <div class="flex gap-2">
+            <!-- 隐藏的文件输入框 -->
+            <input type="file" ref="fileInput" @change="handleExcelUpload" accept=".xlsx, .xls, .csv" class="hidden">
+            
+            <button @click="$refs.fileInput.click()" :disabled="loading" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-lg shadow-emerald-900/20">
+                <i class="fas fa-file-excel"></i> 导入Excel
+            </button>
 
-    <!-- 配置面板 (首次运行自动展开) -->
-    <div v-if="showConfig || !config.token" class="glass p-6 rounded-2xl mb-6 border-l-4 border-indigo-500 animate-fade-in">
-        <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
-            <i class="fab fa-github"></i> 同步设置
-        </h3>
-        <div class="space-y-4">
-            <div>
-                <label class="block text-xs text-slate-400 mb-1">GitHub Token (需要 gist 权限)</label>
-                <input type="password" v-model="config.token" placeholder="ghp_xxxxxxxxxxxx" class="w-full input-dark rounded px-3 py-2 text-sm font-mono">
-            </div>
-            <div>
-                <label class="block text-xs text-slate-400 mb-1">Gist ID</label>
-                <input type="text" v-model="config.gistId" placeholder="例如: e5a3b..." class="w-full input-dark rounded px-3 py-2 text-sm font-mono">
-            </div>
-            <div class="grid grid-cols-2 gap-4">
-                <div><label class="text-xs text-slate-400">初始体重</label><input type="number" v-model.number="config.start" class="w-full input-dark rounded px-3 py-2"></div>
-                <div><label class="text-xs text-slate-400">目标体重</label><input type="number" v-model.number="config.target" class="w-full input-dark rounded px-3 py-2"></div>
-            </div>
-            <div class="flex justify-end gap-3 mt-2">
-                <button @click="pullData" :disabled="loading" class="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-sm font-bold">
-                    <i class="fas fa-download mr-1"></i> 拉取云端
-                </button>
-                <button @click="saveConfig" class="px-6 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold shadow-lg shadow-indigo-500/30">
-                    保存并连接
-                </button>
-            </div>
+            <button @click="pullData" class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition" title="强制刷新">
+                <i class="fas fa-sync-alt text-slate-400" :class="{'fa-spin': loading}"></i>
+            </button>
         </div>
-    </div>
+    </header>
 
     <!-- 主控台 -->
     <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
@@ -140,15 +146,18 @@
                     <input type="number" v-model.number="input.weight" placeholder="体重" class="input-dark rounded px-3 py-2 text-sm w-1/3">
                     <input type="number" v-model.number="input.cost" placeholder="花费" class="input-dark rounded px-3 py-2 text-sm w-1/3">
                 </div>
-                <button @click="addRecord" :disabled="loading" class="w-full mt-3 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded font-bold transition flex justify-center items-center gap-2">
+                <button @click="addRecord" :disabled="loading" class="w-full mt-3 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded font-bold transition flex justify-center items-center gap-2 shadow-lg shadow-indigo-900/50">
                     <i class="fas" :class="loading ? 'fa-spinner fa-spin' : 'fa-plus'"></i>
-                    {{ loading ? '同步中...' : '记录并同步' }}
+                    {{ loading ? '正在同步...' : '记录并同步' }}
                 </button>
             </div>
 
             <!-- 图表 -->
-            <div class="glass rounded-2xl p-4 h-64">
+            <div class="glass rounded-2xl p-4 h-64 relative">
                 <div id="chart" class="w-full h-full"></div>
+                <div v-if="records.length === 0" class="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">
+                    等待数据同步...
+                </div>
             </div>
 
             <!-- 列表 -->
@@ -167,11 +176,11 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="(r, i) in sortedRecords" :key="i" class="border-b border-slate-800/50 hover:bg-slate-800/30 transition">
+                            <tr v-for="(r, i) in sortedRecords" :key="i" class="border-b border-slate-800/50 hover:bg-slate-800/30 transition group">
                                 <td class="py-2 font-mono text-slate-300">{{ r.date }}</td>
                                 <td class="py-2 font-bold text-amber-400">{{ r.weight }}</td>
                                 <td class="py-2 text-right">
-                                    <button @click="deleteRecord(r)" class="text-slate-600 hover:text-rose-500 transition">
+                                    <button @click="deleteRecord(r)" class="text-slate-600 hover:text-rose-500 transition opacity-0 group-hover:opacity-100">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </td>
@@ -192,12 +201,12 @@ createApp({
     data() {
         return {
             loading: false,
-            showConfig: false,
             msg: '',
             msgType: 'info',
+            // --- 您的私人配置 ---
             config: {
-                token: '',
-                gistId: '',
+                token: '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', 
+                gistId: 'bad89a736eb73d5165930e216d568ce4',       
                 start: 80,
                 target: 65
             },
@@ -239,14 +248,7 @@ createApp({
         }
     },
     mounted() {
-        // 读取本地配置
-        const saved = localStorage.getItem('pacman_github_conf');
-        if(saved) {
-            this.config = JSON.parse(saved);
-            if(this.config.token && this.config.gistId) {
-                this.pullData(); // 自动拉取
-            }
-        }
+        this.pullData();
         this.$nextTick(() => this.initChart());
         window.addEventListener('resize', () => this.chart && this.chart.resize());
     },
@@ -256,46 +258,120 @@ createApp({
             this.msgType = type;
             setTimeout(() => this.msg = '', 3000);
         },
-        
-        saveConfig() {
-            localStorage.setItem('pacman_github_conf', JSON.stringify(this.config));
-            this.showConfig = false;
-            this.pullData();
+
+        // --- Excel 导入逻辑 ---
+        handleExcelUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            this.notify('正在解析 Excel...', 'info');
+            this.loading = true;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = e.target.result;
+                    const workbook = XLSX.read(data, { type: 'binary' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+                    // 寻找表头索引
+                    let dateIdx = -1, weightIdx = -1, costIdx = -1;
+                    let headerRowIndex = 0;
+
+                    // 简单的表头查找逻辑
+                    for(let i=0; i<Math.min(5, rows.length); i++) {
+                        const rowStr = rows[i].join(' ').toLowerCase();
+                        if(rowStr.includes('date') || rowStr.includes('日期')) {
+                            headerRowIndex = i;
+                            rows[i].forEach((cell, idx) => {
+                                const txt = String(cell).trim().toLowerCase();
+                                if(txt.includes('date') || txt.includes('日期')) dateIdx = idx;
+                                if(txt.includes('weight') || txt.includes('体重')) weightIdx = idx;
+                                if(txt.includes('cost') || txt.includes('花费')) costIdx = idx;
+                            });
+                            break;
+                        }
+                    }
+
+                    if(dateIdx === -1 || weightIdx === -1) {
+                        throw new Error('未找到"日期"或"体重"列，请检查表头');
+                    }
+
+                    let importCount = 0;
+                    const newMap = new Map();
+                    
+                    // 1. 先把现有记录放入 Map (Key=Date)
+                    this.records.forEach(r => newMap.set(r.date, r));
+
+                    // 2. 遍历 Excel 数据并覆盖/新增
+                    for(let i = headerRowIndex + 1; i < rows.length; i++) {
+                        const row = rows[i];
+                        if(!row[dateIdx]) continue;
+
+                        const dateStr = this.parseExcelDate(row[dateIdx]);
+                        const weightVal = parseFloat(row[weightIdx]);
+
+                        if(dateStr && !isNaN(weightVal)) {
+                            const record = {
+                                date: dateStr,
+                                weight: weightVal,
+                                cost: costIdx !== -1 ? (parseFloat(row[costIdx]) || 0) : 0
+                            };
+                            newMap.set(dateStr, record); // 核心：Map会自动覆盖相同Key(日期)的数据
+                            importCount++;
+                        }
+                    }
+
+                    // 3. 转回数组
+                    this.records = Array.from(newMap.values());
+                    
+                    this.notify(`解析成功！更新了 ${importCount} 条数据，正在上传...`);
+                    this.initChart();
+                    
+                    // 4. 自动上传到 GitHub
+                    this.pushData();
+
+                } catch (err) {
+                    console.error(err);
+                    this.notify(err.message, 'error');
+                    this.loading = false;
+                } finally {
+                    // 清空 input 允许重复上传同一文件
+                    event.target.value = '';
+                }
+            };
+            reader.readAsBinaryString(file);
         },
 
-        // --- 核心：GitHub Gist API 操作 ---
-        
+        // Excel 日期解析黑魔法
+        parseExcelDate(val) {
+            if (!val) return null;
+            // 如果是 Excel 序列号 (例如 45230)
+            if (typeof val === 'number' && val > 20000) {
+                const date = new Date((val - 25569) * 86400 * 1000);
+                return date.toISOString().split('T')[0];
+            }
+            // 如果是字符串
+            const date = new Date(String(val).replace(/\//g, '-').replace(/\./g, '-'));
+            if (isNaN(date.getTime())) return null;
+            return date.toISOString().split('T')[0];
+        },
+
+        // --- GitHub Gist API ---
         async pullData() {
-            if(!this.config.token || !this.config.gistId) return;
             this.loading = true;
-            
             try {
                 const res = await fetch(`https://api.github.com/gists/${this.config.gistId}`, {
-                    headers: {
-                        'Authorization': `token ${this.config.token}`,
-                        'Accept': 'application/vnd.github.v3+json'
-                    }
+                    headers: { 'Authorization': `token ${this.config.token}` },
+                    cache: 'no-store'
                 });
-                
-                if(!res.ok) {
-                    if(res.status === 404) throw new Error('Gist ID 错误');
-                    if(res.status === 401) throw new Error('Token 无效或权限不足');
-                    throw new Error('网络错误');
-                }
-
+                if(!res.ok) throw new Error('连接失败');
                 const data = await res.json();
                 const file = data.files['data.json'];
-                
-                if(file) {
-                    this.records = JSON.parse(file.content);
-                    this.notify('云端数据同步成功');
-                    this.initChart();
-                } else {
-                    // 如果没有文件，初始化一个
-                    this.records = [];
-                    this.notify('初始化新数据文件');
-                }
-
+                this.records = file ? JSON.parse(file.content) : [];
+                this.notify('云端数据已同步');
+                this.initChart();
             } catch(e) {
                 this.notify(e.message, 'error');
             } finally {
@@ -304,33 +380,19 @@ createApp({
         },
 
         async pushData() {
-            if(!this.config.token || !this.config.gistId) return;
             this.loading = true;
-
             try {
-                // 构造 Gist 更新包
-                const payload = {
-                    files: {
-                        "data.json": {
-                            content: JSON.stringify(this.records, null, 2)
-                        }
-                    }
-                };
-
+                const payload = { files: { "data.json": { content: JSON.stringify(this.records, null, 2) } } };
                 const res = await fetch(`https://api.github.com/gists/${this.config.gistId}`, {
                     method: 'PATCH',
                     headers: {
                         'Authorization': `token ${this.config.token}`,
-                        'Accept': 'application/vnd.github.v3+json',
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(payload)
                 });
-
-                if(!res.ok) throw new Error('保存失败，请检查Token权限');
-                
-                this.notify('数据已保存到 GitHub');
-
+                if(!res.ok) throw new Error('上传失败');
+                this.notify('已自动保存到云端');
             } catch(e) {
                 this.notify(e.message, 'error');
             } finally {
@@ -338,31 +400,19 @@ createApp({
             }
         },
 
-        // --- 业务逻辑 ---
-
+        // --- 基础业务 ---
         async addRecord() {
             if(!this.input.weight) return this.notify('请输入体重', 'error');
-            
-            // 检查当天是否已有记录，有则覆盖
             const idx = this.records.findIndex(r => r.date === this.input.date);
-            const newRecord = {
-                date: this.input.date,
-                weight: this.input.weight,
-                cost: this.input.cost || 0
-            };
-
-            if(idx > -1) {
-                this.records[idx] = newRecord;
-            } else {
-                this.records.push(newRecord);
-            }
-            
+            const newRecord = { date: this.input.date, weight: this.input.weight, cost: this.input.cost || 0 };
+            if(idx > -1) this.records[idx] = newRecord;
+            else this.records.push(newRecord);
             this.initChart();
-            await this.pushData(); // 立即同步
+            await this.pushData();
         },
 
         async deleteRecord(record) {
-            if(!confirm('确定删除这条记录吗？')) return;
+            if(!confirm('确定删除?')) return;
             this.records = this.records.filter(r => r !== record);
             this.initChart();
             await this.pushData();
@@ -370,25 +420,13 @@ createApp({
 
         initChart() {
             const dom = document.getElementById('chart');
-            if(!dom) return;
-            if(!this.chart) this.chart = echarts.init(dom);
-            
+            if(!dom || !this.chart && !(this.chart = echarts.init(dom))) return;
             const data = this.timelineRecords;
-            
             this.chart.setOption({
                 grid: { top: 20, right: 20, bottom: 20, left: 40, containLabel: true },
                 tooltip: { trigger: 'axis', backgroundColor: 'rgba(30,41,59,0.9)', borderColor: '#475569', textStyle: {color:'#fff'} },
-                xAxis: { 
-                    type: 'category', 
-                    data: data.map(r => r.date),
-                    axisLine: { lineStyle: { color: '#475569' } }
-                },
-                yAxis: { 
-                    type: 'value', 
-                    scale: true, 
-                    splitLine: { lineStyle: { color: '#334155', type: 'dashed' } },
-                    axisLabel: { color: '#94a3b8' }
-                },
+                xAxis: { type: 'category', data: data.map(r => r.date), axisLine: { lineStyle: { color: '#475569' } } },
+                yAxis: { type: 'value', scale: true, splitLine: { lineStyle: { color: '#334155', type: 'dashed' } }, axisLabel: { color: '#94a3b8' } },
                 series: [{
                     data: data.map(r => r.weight),
                     type: 'line',
@@ -396,12 +434,7 @@ createApp({
                     symbolSize: 8,
                     itemStyle: { color: '#fbbf24' },
                     lineStyle: { width: 3, color: '#fbbf24' },
-                    areaStyle: {
-                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                            { offset: 0, color: 'rgba(251, 191, 36, 0.3)' },
-                            { offset: 1, color: 'rgba(251, 191, 36, 0)' }
-                        ])
-                    }
+                    areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(251, 191, 36, 0.3)' }, { offset: 1, color: 'rgba(251, 191, 36, 0)' }]) }
                 }]
             });
         }
@@ -410,3 +443,4 @@ createApp({
 </script>
 </body>
 </html>
+```
