@@ -1,10 +1,24 @@
+这是为您定制的**全功能终极版**。
 
+### 🆕 本次更新内容
+1.  **新增“备注”功能**：
+    *   **界面**：输入区新增了一行文本框，您可以记录如“吃多了”、“跑了5km”等备注。
+    *   **列表**：历史记录中，备注会以灰色小字显示在日期下方，清晰且不占用额外列宽。
+    *   **数据结构**：JSON 数据自动增加 `note` 字段。
+2.  **Excel 导入升级**：
+    *   支持识别 Excel 中的 **“备注”、“Note”、“Remark”** 列，并自动导入到系统中。
+
+---
+
+### ☁️ 完整代码 (复制保存为 .html)
+
+```html
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>身材吃豆人 (安全同步版)</title>
+    <title>身材吃豆人 (备注增强版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
@@ -70,7 +84,7 @@
                 <span class="text-amber-500 mr-2"><i class="fas fa-ghost"></i></span>身材吃豆人
             </h1>
             <p class="text-xs text-slate-500 mt-1 font-medium pl-1">
-                <i class="fab fa-github mr-1"></i> 安全同步版
+                <i class="fab fa-github mr-1"></i> 备注增强版
             </p>
         </div>
         <div class="flex gap-2">
@@ -102,7 +116,6 @@
                     <div><label class="text-xs font-bold text-slate-400">目标体重 (kg)</label><input type="number" v-model.number="config.target" class="w-full input-light rounded-lg px-3 py-2 mt-1 font-bold text-indigo-600"></div>
                 </div>
                 
-                <!-- 关键修复：分离了拉取和保存按钮 -->
                 <div class="flex flex-col sm:flex-row justify-end gap-3 mt-4 pt-4 border-t border-slate-100">
                     <button @click="pullData" :disabled="loading" class="px-5 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-bold transition flex items-center justify-center gap-2">
                         <i class="fas fa-cloud-download-alt"></i> 仅拉取云端数据
@@ -159,15 +172,19 @@
         <!-- 右侧：操作区 -->
         <div class="lg:col-span-7 flex flex-col gap-6">
             
+            <!-- 录入区：新增备注输入 -->
             <div class="glass rounded-3xl p-6 border border-white">
                 <h3 class="text-sm font-bold text-slate-400 mb-4 uppercase tracking-wide flex items-center gap-2">
                     <i class="fas fa-pen-fancy"></i> 今日打卡
                 </h3>
-                <div class="flex gap-3">
+                <div class="flex gap-3 mb-3">
                     <input type="date" v-model="input.date" class="input-light rounded-xl px-4 py-3 text-sm w-1/3 font-bold text-slate-600 shadow-sm">
                     <input type="number" v-model.number="input.weight" placeholder="体重" class="input-light rounded-xl px-4 py-3 text-sm w-1/3 font-bold shadow-sm">
                     <input type="number" v-model.number="input.cost" placeholder="花费" class="input-light rounded-xl px-4 py-3 text-sm w-1/3 font-bold shadow-sm">
                 </div>
+                <!-- 备注输入框 -->
+                <input type="text" v-model="input.note" placeholder="备注 (如: 聚餐/运动/生理期)" class="w-full input-light rounded-xl px-4 py-3 text-sm font-medium shadow-sm mb-1">
+                
                 <button @click="addRecord" :disabled="loading" class="w-full mt-4 bg-slate-800 hover:bg-slate-700 text-white py-3.5 rounded-xl font-bold transition flex justify-center items-center gap-2 shadow-lg shadow-slate-300/50 transform active:scale-[0.99]">
                     <i class="fas" :class="loading ? 'fa-spinner fa-spin' : 'fa-plus'"></i>
                     {{ loading ? '正在同步...' : '记录并同步' }}
@@ -190,7 +207,7 @@
                     <table class="w-full text-sm text-left text-slate-600">
                         <thead>
                             <tr class="text-xs text-slate-400 border-b border-slate-100">
-                                <th class="pb-3 pl-2">日期</th>
+                                <th class="pb-3 pl-2">日期 / 备注</th>
                                 <th class="pb-3">体重</th>
                                 <th class="pb-3">变化</th>
                                 <th class="pb-3 text-right pr-2">操作</th>
@@ -198,14 +215,20 @@
                         </thead>
                         <tbody>
                             <tr v-for="(r, i) in sortedRecords" :key="i" class="border-b border-slate-50 hover:bg-slate-50 transition group">
-                                <td class="py-3 pl-2 font-mono text-slate-500">{{ r.date }}</td>
-                                <td class="py-3 font-bold text-slate-800">{{ r.weight }}</td>
-                                <td class="py-3 font-bold">
+                                <td class="py-3 pl-2 align-top">
+                                    <div class="font-mono text-slate-600">{{ r.date }}</div>
+                                    <!-- 备注显示在日期下方 -->
+                                    <div v-if="r.note" class="text-xs text-slate-400 mt-1 pr-2 leading-tight">
+                                        <i class="fas fa-sticky-note mr-1 opacity-50"></i>{{ r.note }}
+                                    </div>
+                                </td>
+                                <td class="py-3 font-bold text-slate-800 align-top">{{ r.weight }}</td>
+                                <td class="py-3 font-bold align-top">
                                     <span :class="getDiffColor(r.weight)" class="px-2 py-1 rounded text-xs bg-opacity-10">
                                         {{ getDiffText(r.weight) }}
                                     </span>
                                 </td>
-                                <td class="py-3 text-right pr-2">
+                                <td class="py-3 text-right pr-2 align-top">
                                     <button @click="deleteRecord(r)" class="text-slate-300 hover:text-rose-500 transition opacity-0 group-hover:opacity-100">
                                         <i class="fas fa-trash-alt"></i>
                                     </button>
@@ -238,7 +261,8 @@ createApp({
             input: {
                 date: new Date().toISOString().split('T')[0],
                 weight: '',
-                cost: ''
+                cost: '',
+                note: '' // 新增备注字段
             },
             records: [],
             chart: null
@@ -323,17 +347,13 @@ createApp({
         },
 
         async saveConfigAndPush() {
-            // 1. 保存认证信息到本地
             localStorage.setItem('pacman_github_auth', JSON.stringify({ token: this.config.token, gistId: this.config.gistId }));
             this.showConfig = false;
-            
-            // 2. 安全检查：如果本地没有数据，禁止直接推送，防止清空云端
             if(this.records.length === 0) {
                 this.notify('本地无数据！请先点击"仅拉取"防止覆盖云端', 'error');
-                this.showConfig = true; // 重新打开面板
+                this.showConfig = true;
                 return;
             }
-
             this.notify('配置已更新，正在同步...');
             await this.pushData();
         },
@@ -377,12 +397,9 @@ createApp({
 
         async pushData() {
             if(!this.config.token || !this.config.gistId) return;
-            
-            // 双重安全锁：如果 records 为空，再次确认
             if(this.records.length === 0) {
                 if(!confirm("⚠️ 警告：本地没有任何数据！\n继续同步将会清空云端的所有记录。\n\n确定要继续吗？")) return;
             }
-
             this.loading = true;
             try {
                 const fullData = {
@@ -413,7 +430,11 @@ createApp({
                 try {
                     const workbook = XLSX.read(e.target.result, { type: 'binary' });
                     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
-                    let dateIdx = -1, weightIdx = -1, costIdx = -1, headerRowIndex = 0;
+                    
+                    let dateIdx = -1, weightIdx = -1, costIdx = -1, noteIdx = -1;
+                    let headerRowIndex = 0;
+
+                    // 智能识别表头
                     for(let i=0; i<Math.min(5, rows.length); i++) {
                         const rowStr = rows[i].join(' ').toLowerCase();
                         if(rowStr.includes('date') || rowStr.includes('日期')) {
@@ -423,24 +444,31 @@ createApp({
                                 if(txt.includes('date') || txt.includes('日期')) dateIdx = idx;
                                 if(txt.includes('weight') || txt.includes('体重')) weightIdx = idx;
                                 if(txt.includes('cost') || txt.includes('花费')) costIdx = idx;
+                                // 识别备注列
+                                if(txt.includes('note') || txt.includes('remark') || txt.includes('备注')) noteIdx = idx;
                             });
                             break;
                         }
                     }
+
                     if(dateIdx === -1 || weightIdx === -1) throw new Error('未找到日期或体重列');
+                    
                     const newMap = new Map();
                     this.records.forEach(r => newMap.set(r.date, r));
+                    
                     let count = 0;
                     for(let i = headerRowIndex + 1; i < rows.length; i++) {
                         const row = rows[i];
                         if(!row[dateIdx]) continue;
                         const dateStr = this.parseExcelDate(row[dateIdx]);
                         const weightVal = parseFloat(row[weightIdx]);
+                        
                         if(dateStr && !isNaN(weightVal)) {
                             newMap.set(dateStr, {
                                 date: dateStr,
                                 weight: weightVal,
-                                cost: costIdx !== -1 ? (parseFloat(row[costIdx]) || 0) : 0
+                                cost: costIdx !== -1 ? (parseFloat(row[costIdx]) || 0) : 0,
+                                note: noteIdx !== -1 ? (row[noteIdx] || '') : '' // 导入备注
                             });
                             count++;
                         }
@@ -471,9 +499,18 @@ createApp({
         async addRecord() {
             if(!this.input.weight) return this.notify('请输入体重', 'error');
             const idx = this.records.findIndex(r => r.date === this.input.date);
-            const newRecord = { date: this.input.date, weight: this.input.weight, cost: this.input.cost || 0 };
+            const newRecord = { 
+                date: this.input.date, 
+                weight: this.input.weight, 
+                cost: this.input.cost || 0,
+                note: this.input.note || '' // 保存备注
+            };
             if(idx > -1) this.records[idx] = newRecord;
             else this.records.push(newRecord);
+            
+            // 清空输入框
+            this.input.note = '';
+            
             this.initChart();
             await this.pushData();
         },
@@ -497,7 +534,14 @@ createApp({
                     backgroundColor: 'rgba(255, 255, 255, 0.95)', 
                     borderColor: '#e2e8f0', 
                     textStyle: {color:'#334155'},
-                    extraCssText: 'box-shadow: 0 4px 12px rgba(0,0,0,0.1);'
+                    extraCssText: 'box-shadow: 0 4px 12px rgba(0,0,0,0.1);',
+                    formatter: function(params) {
+                        const item = data[params[0].dataIndex];
+                        let html = `<div class="font-bold mb-1">${item.date}</div>`;
+                        html += `<div>体重: <b>${item.weight}</b> kg</div>`;
+                        if(item.note) html += `<div class="text-xs text-slate-500 mt-1" style="max-width:150px;white-space:normal;">${item.note}</div>`;
+                        return html;
+                    }
                 },
                 xAxis: { 
                     type: 'category', 
