@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔒 体重追踪、汽车行驶进度与 Excel 导入 (含每日花费)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        /* 基础样式 (大部分与之前版本相同) */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #eef2f7;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #fff;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+        h2 {
+            text-align: center;
+            color: #007bff;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        /* 布局 */
+        .top-section {
+            display: grid;
+            grid-template-columns: 2fr 1fr; 
+            gap: 30px;
+        }
+
+        /* 输入/控制区域 */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            background-color: #f9f9f9;
+        }
+        .input-group {
+            flex-grow: 1;
+            min-width: 150px;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s;
+            align-self: flex-end; 
+        }
+        button:hover {
+            background-color: #1e7e34;
+        }
+        
+        .import-group {
+            min-width: 100%;
+            border: 1px dashed #007bff;
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        /* 汇总数据样式 */
+        .summary-box {
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+            padding: 20px 0;
+            border-top: 1px dashed #ccc;
+            border-bottom: 1px dashed #ccc;
+        }
+        .summary-item h4 {
+            margin: 0 0 5px 0;
+            color: #007bff;
+        }
+        .summary-value {
+            font-size: 1.3em; 
+            font-weight: bold;
+            color: #333;
+        }
+        
+        /* --- 汽车进度可视化 CSS --- */
+        .road-visualization {
+            background-color: #f0f0f5;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        #roadContainer {
+            position: relative;
+            width: 100%;
+            height: 100px; 
+            background: linear-gradient(to top, #333 70%, #666 100%); 
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .road-line {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: repeating-linear-gradient(to right, 
+                #ffcc00 0, 
+                #ffcc00 20px, 
+                transparent 20px, 
+                transparent 40px); 
+            transform: translateY(-50%);
+        }
+        
+        #targetFlag {
+            position: absolute;
+            height: 100px;
+            width: 5px;
+            background-color: #28aa46; 
+            right: 0;
+            top: 0;
+            transform: translateX(0px); 
+            z-index: 10;
+        }
+        #targetFlag::before {
+            content: '终点目标';
+            position: absolute;
+            top: 0;
+            right: 5px;
+            background-color: #28a745;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 3px;
+            white-space: nowrap;
+        }
+
+        #carIcon {
+            position: absolute;
+            bottom: 10px; 
+            left: 0;
+            width: 60px;
+            height: 30px;
+            transition: left 1s ease-out; 
+            z-index: 20;
+            transform: translateX(-50%); 
+        }
+        
+        .car-svg {
+            fill: #dc3545; 
+            stroke: #333;
+            stroke-width: 1;
+        }
+        .wheel {
+            fill: #333;
+        }
+        
+        /* --- 登录界面样式 --- */
+        #loginOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .login-box {
+            background: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+        .login-box input[type="password"] {
+            padding: 10px;
+            margin: 10px 0 20px 0;
+            width: 250px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1.2em;
+        }
+        .login-box button {
+            background-color: #007bff;
+            width: 100%;
+            padding: 12px;
+            font-size: 1.1em;
+        }
+        .login-box button:hover {
+            background-color: #0056b3;
+        }
+
+        /* --- 密码管理区样式 --- */
+        .password-management {
+            padding: 15px;
+            border: 1px solid #ffc107;
+            background-color: #fff3cd;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        .password-management input {
+            margin-right: 10px;
+            padding: 8px;
+            width: 120px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loginOverlay">
+        <div class="login-box">
+            <h2>🔐 请输入访问密码</h2>
+            <input type="password" id="accessPassword" placeholder="访问密码" required>
+            <button onclick="checkPassword()">访问应用</button>
+            <p style="margin-top: 15px; color: #888;">初始密码: 124578</p>
+        </div>
+    </div>
+    
+    <div class="container" id="mainApp" style="display:none;">
+        <h2>🏋️ 体重目标追踪器</h2>
+
+        <div class="password-management">
+            <h3>🔑 密码管理</h3>
+            <p>
+                <label>管理密码:</label>
+                <input type="password" id="adminPassword" placeholder="198666" style="width: 100px;">
+                <label>新访问密码:</label>
+                <input type="password" id="newAccessPassword" placeholder="新密码">
+                <button onclick="changeAccessPassword()" style="background-color: #ffc107; color: #333; width: auto; padding: 8px 15px;">修改访问密码</button>
+            </p>
+        </div>
+        
+        <div class="top-section">
+            <div>
+                <h3>⚙️ 基础信息和记录</h3>
+                <div class="controls">
+                    <div class="input-group">
+                        <label for="initialWeight">初始体重 (公斤):</label>
+                        <input type="number" id="initialWeight" value="70" min="1" step="0.1" onchange="saveInitialTarget()">
+                    </div>
+                    <div class="input-group">
+                        <label for="targetWeight">目标体重 (公斤):</label>
+                        <input type="number" id="targetWeight" value="60" min="1" step="0.1" onchange="saveInitialTarget()">
+                    </div>
+                    <div class="input-group">
+                        <label for="heightCm">身高 (厘米):</label>
+                        <input type="number" id="heightCm" value="170" min="100" step="1" onchange="saveInitialTarget()">
+                    </div>
+                    <div class="input-group">
+                        <label for="gender">性别:</label>
+                        <select id="gender" onchange="saveInitialTarget()">
+                            <option value="male">男性</option>
+                            <option value="female">女性</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="currentDate">记录日期:</label>
+                        <input type="date" id="currentDate">
+                    </div>
+                    <div class="input-group">
+                        <label for="currentWeight">今日体重 (公斤):</label>
+                        <input type="number" id="currentWeight" value="65" min="1" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <label for="currentDailyCost">今日花费 (元):</label>
+                        <input type="number" id="currentDailyCost" value="120" min="0" step="1">
+                    </div>
+                    <button onclick="addWeightRecord()">记录并计算</button>
+
+                    <div class="input-group import-group">
+                        <label for="excelFile">从 Excel/CSV 导入记录 (.xlsx/.csv)</label>
+                        <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" onchange="importFromExcel(event)">
+                        <small>格式要求：**日期** (A列), **体重** (B列), **每日花费** (C列)</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="road-visualization">
+                <h3>🚗 目标里程进度</h3>
+                <p id="progressInfo">当前进度: 0.0% | 距离目标: N/A</p>
+                
+                <div id="roadContainer">
+                    <div class="road-line"></div>
+                    <div id="targetFlag"></div>
+                    
+                    <div id="carIcon">
+                        <svg viewBox="0 0 60 30" class="car-svg">
+                            <rect x="5" y="10" width="50" height="15" rx="5" class="car-svg"/>
+                            <rect x="15" y="0" width="30" height="15" rx="5" class="car-svg"/>
+                            <circle cx="15" cy="25" r="5" class="wheel"/>
+                            <circle cx="45" cy="25" r="5" class="wheel"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="summary-box" id="summaryBox"></div>
+
+        <div>
+            <h3>📈 体重变化趋势 (斤)</h3>
+            <div id="chart-area">
+                <canvas id="weightChart"></canvas>
+            </div>
+        </div>
+
+        <div>
+            <h3>📋 历史记录 (斤/公斤)</h3>
+            <table id="history">
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>体重 (公斤)</th>
+                        <th>体重 (斤)</th>
+                        <th>花费 (元)</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody"></tbody>
+            </table>
+        </div>
+        
+    </div>
+
+    <script>
+        // --- 0. 常量和全局变量 ---
+        const INITIAL_ACCESS_PASSWORD = '124578'; 
+        const ADMIN_PASSWORD = '198666'; 
+        const PASSWORD_KEY = 'weightTracker_AccessPassword'; 
+
+        // 基础数据键
+        const INITIAL_KEY = 'weightTracker_Initial';
+        const TARGET_KEY = 'weightTracker_Target';
+        const RECORDS_KEY = 'weightTracker_Records'; // 记录现在包含每日花费
+        const GENDER_KEY = 'weightTracker_Gender';
+        const HEIGHT_KEY = 'weightTracker_Height';
+        let chart; 
+
+        // --- A. 密码控制功能 (与之前版本相同) ---
+        
+        function getCurrentAccessPassword() {
+            let password = localStorage.getItem(PASSWORD_KEY);
+            if (!password) {
+                password = INITIAL_ACCESS_PASSWORD;
+                localStorage.setItem(PASSWORD_KEY, password);
+            }
+            return password;
+        }
+
+        function checkPassword() {
+            const input = document.getElementById('accessPassword').value;
+            const currentPassword = getCurrentAccessPassword();
+
+            if (input === currentPassword) {
+                document.getElementById('loginOverlay').style.display = 'none';
+                document.getElementById('mainApp').style.display = 'grid'; 
+                initializeApp(); 
+            } else {
+                alert('密码错误！请重试。');
+                document.getElementById('accessPassword').value = '';
+            }
+        }
+
+        function changeAccessPassword() {
+            const adminInput = document.getElementById('adminPassword').value;
+            const newPassInput = document.getElementById('newAccessPassword').value;
+
+            if (adminInput !== ADMIN_PASSWORD) {
+                alert('管理密码错误，无法修改访问密码！');
+                return;
+            }
+
+            if (!newPassInput || newPassInput.length < 4) {
+                alert('新密码不能为空，且建议至少4位字符。');
+                return;
+            }
+
+            localStorage.setItem(PASSWORD_KEY, newPassInput);
+            alert(`访问密码修改成功！新密码为: ${newPassInput}`);
+            
+            document.getElementById('adminPassword').value = '';
+            document.getElementById('newAccessPassword').value = '';
+        }
+
+        // --- B. 应用初始化 ---
+        
+        function initializeApp() {
+            document.getElementById('currentDate').valueAsDate = new Date();
+            loadInitialTarget(); 
+            renderAll(); 
+        }
+        
+        window.onload = function() {
+            getCurrentAccessPassword(); 
+            
+            document.getElementById('accessPassword').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    checkPassword();
+                }
+            });
+        };
+
+        // --- C. 数据加载与保存 (修改：不再有单独的COST_KEY) ---
+        
+        function loadInitialTarget() {
+            document.getElementById('initialWeight').value = localStorage.getItem(INITIAL_KEY) || '70';
+            document.getElementById('targetWeight').value = localStorage.getItem(TARGET_KEY) || '60';
+            // 移除 load 对 dailyCost 的加载，现在从记录中获取
+            document.getElementById('gender').value = localStorage.getItem(GENDER_KEY) || 'male';
+            document.getElementById('heightCm').value = localStorage.getItem(HEIGHT_KEY) || '170';
+        }
+
+        function saveInitialTarget() {
+            localStorage.setItem(INITIAL_KEY, document.getElementById('initialWeight').value);
+            localStorage.setItem(TARGET_KEY, document.getElementById('targetWeight').value);
+            // 移除对 dailyCost 的保存
+            localStorage.setItem(GENDER_KEY, document.getElementById('gender').value);
+            localStorage.setItem(HEIGHT_KEY, document.getElementById('heightCm').value);
+            renderAll(); 
+        }
+
+        function loadRecords() {
+            const recordsJson = localStorage.getItem(RECORDS_KEY);
+            return recordsJson ? JSON.parse(recordsJson).sort((a, b) => new Date(a.date) - new Date(b.date)) : [];
+        }
+
+        function saveRecords(records) {
+            localStorage.setItem(RECORDS_KEY, JSON.stringify(records));
+        }
+
+        // --- D. Excel/CSV 导入功能 (重大修改：读取第三列每日花费) ---
+        function importFromExcel(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                
+                const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                
+                let existingRecords = loadRecords();
+                let importedCount = 0;
+                
+                json.forEach((row, index) => {
+                    // 假设第一行是表头
+                    if (index === 0 || !row[0] || !row[1]) return; 
+
+                    let dateString = row[0];
+                    let weightKg = parseFloat(row[1]);
+                    // *** 读取第三列数据 (每日花费) ***
+                    let dailyCost = parseFloat(row[2]) || 0; // 默认为 0，以防未填写
+
+                    if (typeof dateString === 'number') {
+                        const utc_days = Math.floor(dateString - 25569);
+                        const date = new Date(utc_days * 86400 * 1000);
+                        dateString = date.toISOString().split('T')[0];
+                    }
+
+                    if (dateString && !isNaN(weightKg) && weightKg > 0) {
+                        const newRecord = { date: dateString, weightKg: weightKg, dailyCost: dailyCost };
+                        
+                        const existingIndex = existingRecords.findIndex(r => r.date === dateString);
+
+                        if (existingIndex !== -1) {
+                            existingRecords[existingIndex] = newRecord; 
+                        } else {
+                            existingRecords.push(newRecord); 
+                        }
+                        importedCount++;
+                    }
+                });
+                
+                if (importedCount > 0) {
+                    saveRecords(existingRecords);
+                    renderAll();
+                    alert(`成功导入/更新了 ${importedCount} 条记录！`);
+                } else {
+                    alert('未找到有效的记录进行导入。请检查文件格式。');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // --- E. 记录管理 (修改：捕获每日花费) ---
+        function addWeightRecord() {
+            const date = document.getElementById('currentDate').value;
+            const weightKg = parseFloat(document.getElementById('currentWeight').value);
+            // *** 捕获手动输入的每日花费 ***
+            const dailyCost = parseFloat(document.getElementById('currentDailyCost').value) || 0;
+
+            if (!date || isNaN(weightKg) || weightKg <= 0) {
+                alert('请输入有效的日期和体重！');
+                return;
+            }
+            let records = loadRecords();
+            const existingIndex = records.findIndex(r => r.date === date);
+
+            const newRecord = { date, weightKg, dailyCost }; // 包含每日花费
+
+            if (existingIndex !== -1) {
+                // 如果存在，保留旧记录中未输入的字段 (此处仅更新体重和花费)
+                records[existingIndex] = Object.assign({}, records[existingIndex], newRecord);
+            } else {
+                records.push(newRecord);
+            }
+
+            saveRecords(records);
+            renderAll();
+        }
+
+        function deleteRecord(date) {
+            if (!confirm(`确定要删除 ${date} 的体重记录吗？`)) return;
+
+            let records = loadRecords();
+            records = records.filter(r => r.date !== date);
+            saveRecords(records);
+            renderAll();
+        }
+
+        // --- F. 渲染汽车公路可视化 (与之前版本相同) ---
+        function renderRoadVisualization(progressPercent, remainingLossJin) {
+            const carIcon = document.getElementById('carIcon');
+            const progressInfo = document.getElementById('progressInfo');
+            
+            const safeProgress = Math.min(100, Math.max(0, progressPercent));
+            let carPosition = safeProgress;
+            
+            carIcon.style.left = `${carPosition}%`;
+
+            let remainingText;
+            if (safeProgress >= 100) {
+                remainingText = "目标已达成！";
+                carIcon.style.fill = '#28a745'; 
+            } else if (remainingLossJin === 'N/A') {
+                remainingText = "N/A";
+            } else {
+                remainingText = `${remainingLossJin.toFixed(1)} 斤`;
+                carIcon.style.fill = '#dc3545'; 
+            }
+
+            progressInfo.innerHTML = `当前进度: <strong>${safeProgress.toFixed(1)}%</strong> | 距离目标: <strong>${remainingText}</strong>`;
+        }
+
+        // --- G. 渲染汇总数据 (重大修改：计算总花费) ---
+        function renderSummary(records) {
+            const initialKg = parseFloat(document.getElementById('initialWeight').value);
+            const targetKg = parseFloat(document.getElementById('targetWeight').value);
+            
+            const summaryBox = document.getElementById('summaryBox');
+            summaryBox.innerHTML = '';
+
+            if (records.length === 0 || isNaN(initialKg) || isNaN(targetKg)) {
+                summaryBox.innerHTML = '<p style="text-align:center;">请先录入初始体重、目标体重和每日记录。</p>';
+                renderRoadVisualization(0, 'N/A'); 
+                return;
+            }
+
+            const latestKg = records[records.length - 1].weightKg;
+            const totalLossTarget = Math.abs(initialKg - targetKg);
+            const currentLossKg = initialKg - latestKg; 
+            const currentLossJin = currentLossKg * 2; 
+            
+            const isLosingWeight = initialKg > targetKg;
+            const diffSign = currentLossJin >= 0 ? '减少' : '增加';
+
+            let progressPercent = 0;
+            if (totalLossTarget > 0) {
+                if (isLosingWeight && currentLossKg >= 0 || !isLosingWeight && currentLossKg <= 0) {
+                    progressPercent = (Math.abs(currentLossKg) / totalLossTarget) * 100;
+                }
+            }
+
+            let expectedDaysToTarget = 'N/A';
+            let costPerJin = 'N/A';
+            let remainingLossJin = 'N/A';
+
+            if (records.length >= 1) { // 至少有一条记录
+
+                // *** 总花费计算更新 ***
+                const totalCost = records.reduce((sum, record) => sum + (record.dailyCost || 0), 0);
+                
+                if (records.length >= 2) {
+                    const firstRecord = records[0];
+                    const lastRecord = records[records.length - 1];
+                    
+                    // 计算从第一次记录到最后一次记录之间的天数 (用于平均速度计算)
+                    const timeDiff = new Date(lastRecord.date) - new Date(firstRecord.date);
+                    const totalDays = Math.round(timeDiff / (1000 * 3600 * 24)); 
+                    
+                    const absCurrentLossKg = Math.abs(currentLossKg);
+                    const remainingLossKg = Math.abs(targetKg - latestKg);
+                    remainingLossJin = remainingLossKg * 2;
+                    
+                    if (totalDays > 0) {
+                        // 预计达成天数计算
+                        if (absCurrentLossKg > 0) {
+                            const averageDailyChange = absCurrentLossKg / totalDays; 
+                            
+                            if (remainingLossKg > 0 && averageDailyChange > 0) {
+                                expectedDaysToTarget = Math.ceil(remainingLossKg / averageDailyChange) + ' 天';
+                            } else if (remainingLossKg <= 0) {
+                                expectedDaysToTarget = '已达成！';
+                            }
+                        }
+                    }
+                }
+                
+                // 每斤花费计算
+                const absCurrentLossKg = Math.abs(currentLossKg);
+                if (absCurrentLossKg > 0 && totalCost > 0) {
+                    const absCurrentLossJin = absCurrentLossKg * 2;
+                    costPerJin = (totalCost / absCurrentLossJin).toFixed(2) + ' 元';
+                } else if (totalCost === 0) {
+                    costPerJin = '0.00 元';
+                }
+
+            }
+            
+            renderRoadVisualization(progressPercent, remainingLossJin);
+
+            summaryBox.innerHTML = `
+                <div class="summary-item">
+                    <h4>今日体重</h4>
+                    <span class="summary-value">${latestKg.toFixed(1)} 公斤 (${(latestKg * 2).toFixed(1)} 斤)</span>
+                </div>
+                <div class="summary-item">
+                    <h4>总${diffSign}</h4>
+                    <span class="summary-value" style="color: ${currentLossJin >= 0 ? '#28a745' : '#dc3545'};">${Math.abs(currentLossJin).toFixed(1)} 斤</span>
+                </div>
+                <div class="summary-item">
+                    <h4>目标进度</h4>
+                    <span class="summary-value" style="color: ${progressPercent >= 100 ? '#28a745' : '#007bff'};">${Math.min(100, progressPercent).toFixed(1)}%</span>
+                </div>
+                <div class="summary-item">
+                    <h4>预计达成</h4>
+                    <span class="summary-value">${expectedDaysToTarget}</span>
+                </div>
+                <div class="summary-item">
+                    <h4>每斤花费</h4>
+                    <span class="summary-value">${costPerJin}</span>
+                </div>
+            `;
+        }
+        
+        // --- H. 渲染表格和图表 (修改：表格增加花费列) ---
+        function renderHistoryTable(records) {
+            const body = document.getElementById('historyBody');
+            body.innerHTML = ''; 
+
+            records.forEach(record => {
+                const weightJin = record.weightKg * 2;
+                const dailyCost = (record.dailyCost || 0).toFixed(2);
+                const row = body.insertRow();
+                row.innerHTML = `
+                    <td>${record.date}</td>
+                    <td>${record.weightKg.toFixed(1)}</td>
+                    <td>${weightJin.toFixed(1)}</td>
+                    <td>${dailyCost}</td> 
+                    <td><button class="delete-btn" onclick="deleteRecord('${record.date}')">删除</button></td>
+                `;
+            });
+        }
+
+        function renderChart(records) {
+            const initialKg = parseFloat(document.getElementById('initialWeight').value);
+            const targetKg = parseFloat(document.getElementById('targetWeight').value);
+            
+            const labels = records.map(r => r.date);
+            const dataJin = records.map(r => r.weightKg * 2);
+
+            const ctx = document.getElementById('weightChart').getContext('2d');
+
+            if (chart) {
+                chart.destroy(); 
+            }
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '实际体重 (斤)',
+                        data: dataJin,
+                        borderColor: '#007bff',
+                        backgroundColor: 'rgba(0, 123, 255, 0.2)',
+                        tension: 0.3, 
+                        fill: true,
+                    },
+                    {
+                        label: '目标体重 (斤)',
+                        data: Array(labels.length).fill(targetKg * 2),
+                        borderColor: '#28a745',
+                        borderDash: [5, 5], 
+                        pointRadius: 0,
+                        backgroundColor: 'transparent',
+                    },
+                    {
+                        label: '初始体重 (斤)',
+                        data: Array(labels.length).fill(initialKg * 2),
+                        borderColor: '#dc3545',
+                        borderDash: [5, 5], 
+                        pointRadius: 0,
+                        backgroundColor: 'transparent',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false, 
+                    scales: {
+                        y: {
+                            title: {
+                                display: true,
+                                text: '体重 (斤)', 
+                                font: { size: 14, weight: 'bold' }
+                            },
+                            beginAtZero: false
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '日期'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        const kg = (context.parsed.y / 2).toFixed(1);
+                                        label += `${context.parsed.y.toFixed(1)} 斤 (${kg} 公斤)`; 
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function renderAll() {
+            const records = loadRecords();
+            renderHistoryTable(records);
+            renderSummary(records);
+            renderChart(records);
+        }
+
+    </script>
+
+</body>
+</html>
