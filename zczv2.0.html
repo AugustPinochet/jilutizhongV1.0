@@ -2,74 +2,138 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>身材吃豆人 (深度调试版)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>身材吃豆人 (调试修复版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
     <style>
-        body { font-family: sans-serif; background: #f1f5f9; }
-        [v-cloak] { display: none; }
-        .glass { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+        body { font-family: 'Noto Sans SC', sans-serif; background-color: #f1f5f9; -webkit-tap-highlight-color: transparent; }
+        [v-cloak] { display: none !important; }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+        .btn-active:active { transform: scale(0.96); opacity: 0.9; }
+        
+        /* 游戏样式简略保留 */
+        .game-screen { background-color: #1e293b; border-radius: 12px; padding: 12px; width: 100%; max-width: 340px; margin: 0 auto; }
+        .pac-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+        .pac-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; position: relative; }
+        .dot { width: 6px; height: 6px; background-color: #94a3b8; border-radius: 50%; opacity: 0.5; }
+        .pacman { width: 20px; height: 20px; background: #fbbf24; border-radius: 50%; position: relative; z-index: 10; }
+        .target-icon { color: #f43f5e; animation: pulse 2s infinite; }
+        .path-cleared::after { content: ''; width: 2px; height: 2px; background-color: #334155; border-radius: 50%; }
+        
+        .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
+        .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-20px); }
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
-<body>
+<body class="text-slate-700">
 
-<div id="app" v-cloak class="max-w-3xl mx-auto p-4">
+<div id="app" v-cloak class="min-h-screen p-4 md:p-6 max-w-7xl mx-auto pb-20 md:pb-6">
     
-    <!-- 顶部状态栏 -->
-    <div class="glass p-4 mb-4 border-l-4" :class="statusClass">
-        <h2 class="font-bold text-lg flex items-center gap-2">
-            <i class="fas" :class="statusIcon"></i> {{ statusTitle }}
-        </h2>
-        <p class="text-sm mt-1 text-slate-600">{{ statusMsg }}</p>
-    </div>
+    <!-- 消息提示 -->
+    <transition name="toast">
+        <div v-if="toastMsg" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-xl text-sm font-medium flex items-center gap-2 whitespace-nowrap"
+             :class="toastType === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-800 text-white'">
+            <i class="fas" :class="toastType === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle'"></i> 
+            {{ toastMsg }}
+        </div>
+    </transition>
 
-    <!-- 配置区 -->
-    <div class="glass p-4 mb-4">
-        <label class="block text-xs font-bold text-slate-500 mb-2">GOOGLE SHEET 链接</label>
+    <!-- 顶部导航 -->
+    <header class="mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800"><i class="fas fa-ghost mr-2 text-amber-500"></i>身材吃豆人</h1>
+            <p class="text-slate-500 text-xs">智能修复版</p>
+        </div>
         <div class="flex gap-2">
-            <input type="text" v-model="sheetInput" class="flex-1 border rounded px-3 py-2 text-sm font-mono" placeholder="https://docs.google.com/...">
-            <button @click="startSync" :disabled="loading" class="bg-indigo-600 text-white px-6 py-2 rounded font-bold disabled:opacity-50">
-                {{ loading ? '读取中...' : '同步' }}
+            <button @click="syncGoogleSheet" :disabled="isLoading" class="btn-active px-4 py-2 bg-green-600 text-white rounded-lg shadow-lg text-sm font-medium flex items-center gap-2">
+                <i class="fas" :class="isLoading ? 'fa-spinner spin' : 'fa-cloud-download-alt'"></i> 
+                <span>{{ isLoading ? '正在连接...' : '同步数据' }}</span>
             </button>
+            <button @click="showSettings = !showSettings" class="btn-active px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm"><i class="fas fa-cog"></i></button>
         </div>
-        <div class="mt-2 text-xs text-slate-500">
-            <p>当前识别ID: <span class="font-mono bg-slate-100 px-1">{{ sheetId }}</span></p>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <!-- 设置面板 (默认展开如果没数据) -->
+        <div v-if="showSettings || records.length === 0" class="lg:col-span-12 glass-panel rounded-xl p-4 border-l-4 border-indigo-500 mb-4">
+            <h3 class="font-bold text-slate-700 mb-2">⚙️ 数据源配置</h3>
+            <div class="flex flex-col md:flex-row gap-2">
+                <input type="text" v-model="sheetInput" placeholder="粘贴 Google Sheet 链接..." class="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono">
+                <button @click="saveSettings" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium">保存并同步</button>
+            </div>
+            <div class="mt-2 text-xs text-slate-500 bg-slate-50 p-2 rounded">
+                <p class="font-bold mb-1">⚠️ 无法同步？请检查以下几点：</p>
+                <ul class="list-disc list-inside space-y-1">
+                    <li>确保权限已设为：<strong>Anyone with the link (知道链接的任何人) -> Viewer (查看者)</strong></li>
+                    <li>确保表格中有<strong>"日期"</strong>(或 Date) 和 <strong>"体重"</strong>(或 Weight) 这两列。</li>
+                    <li>当前使用的 ID: <span class="font-mono text-indigo-500">{{ sheetId }}</span></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 核心显示区 -->
+        <div class="lg:col-span-4 space-y-4">
+            <div class="glass-panel rounded-2xl p-5 text-center">
+                <p class="text-xs text-slate-400">当前体重</p>
+                <p class="text-4xl font-bold text-slate-800 my-2">{{ currentWeight }}<span class="text-lg text-slate-500">kg</span></p>
+                <div class="flex justify-center gap-4 text-sm">
+                    <span class="text-emerald-600">已减 {{ lostJin }} 斤</span>
+                    <span class="text-rose-500">剩余 {{ remainingJin }} 斤</span>
+                </div>
+            </div>
+            
+            <!-- 简易吃豆人显示 -->
+            <div class="glass-panel rounded-2xl p-4 flex justify-center bg-slate-800">
+                <div class="pac-grid" style="width:240px;">
+                    <div v-for="n in 100" :key="n" class="pac-cell">
+                        <div v-if="n === currentStep" class="pacman"></div>
+                        <div v-else-if="n > currentStep" class="dot"></div>
+                        <i v-else-if="n === 100" class="fas fa-flag text-white text-xs"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 列表区 -->
+        <div class="lg:col-span-8 glass-panel rounded-2xl p-4 min-h-[400px]">
+            <h3 class="font-bold text-slate-800 mb-4">数据记录 ({{ records.length }})</h3>
+            <div v-if="records.length === 0" class="text-center py-10 text-slate-400">
+                <i class="fas fa-table text-4xl mb-3 opacity-30"></i>
+                <p>暂无数据，请点击上方“同步数据”</p>
+            </div>
+            <div v-else class="overflow-auto max-h-[500px]">
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs text-slate-400 bg-slate-50 sticky top-0">
+                        <tr>
+                            <th class="p-3">日期</th>
+                            <th class="p-3">体重</th>
+                            <th class="p-3">花费</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="r in sortedRecords" :key="r.id" class="border-b border-slate-50">
+                            <td class="p-3 font-mono">{{ r.date }}</td>
+                            <td class="p-3 font-bold">{{ r.weight }}</td>
+                            <td class="p-3 text-slate-400">{{ r.cost }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
-
-    <!-- 调试日志区 (关键) -->
-    <div v-if="logs.length > 0" class="glass p-4 mb-4 bg-slate-900 text-green-400 font-mono text-xs overflow-auto max-h-60">
-        <div v-for="(log, i) in logs" :key="i" class="mb-1 border-b border-slate-800 pb-1">
-            <span class="text-slate-500">[{{ log.time }}]</span> <span v-html="log.msg"></span>
-        </div>
-    </div>
-
-    <!-- 数据预览 -->
-    <div v-if="records.length > 0" class="glass p-4">
-        <h3 class="font-bold mb-4">成功读取 {{ records.length }} 条记录</h3>
-        <table class="w-full text-sm text-left">
-            <thead class="bg-slate-50 text-slate-500">
-                <tr>
-                    <th class="p-2">日期</th>
-                    <th class="p-2">体重</th>
-                    <th class="p-2">花费</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr v-for="r in records.slice(0, 5)" class="border-b">
-                    <td class="p-2">{{ r.date }}</td>
-                    <td class="p-2 font-bold">{{ r.weight }}</td>
-                    <td class="p-2">{{ r.cost }}</td>
-                </tr>
-            </tbody>
-        </table>
-        <p v-if="records.length > 5" class="text-center text-xs text-slate-400 mt-2">...仅显示前5条...</p>
-    </div>
-
 </div>
 
 <script>
@@ -78,141 +142,155 @@ const { createApp } = Vue;
 createApp({
     data() {
         return {
-            loading: false,
+            showSettings: false,
+            toastMsg: '',
+            toastType: 'info',
+            isLoading: false,
+            // 您的 ID
+            sheetId: '1Inbi59ix1oVaUqrXxZVev6uiy6eUZRMuqEV5ZG_tQDA', 
             sheetInput: 'https://docs.google.com/spreadsheets/d/1Inbi59ix1oVaUqrXxZVev6uiy6eUZRMuqEV5ZG_tQDA/edit?usp=sharing',
-            sheetId: '',
-            records: [],
-            logs: [],
-            statusTitle: '准备就绪',
-            statusMsg: '请点击同步按钮开始测试',
-            statusType: 'info' // info, success, error
+            settings: { initialWeight: 80, targetWeight: 65 },
+            records: []
         }
     },
     computed: {
-        statusClass() {
-            if(this.statusType === 'error') return 'border-rose-500 bg-rose-50 text-rose-700';
-            if(this.statusType === 'success') return 'border-emerald-500 bg-emerald-50 text-emerald-700';
-            return 'border-indigo-500 bg-indigo-50 text-indigo-700';
+        sortedRecords() { return [...this.records].sort((a, b) => new Date(b.date) - new Date(a.date)); },
+        currentWeight() { return this.records.length ? this.sortedRecords[0].weight : this.settings.initialWeight; },
+        lostJin() { return ((this.settings.initialWeight - this.currentWeight) * 2).toFixed(1); },
+        remainingJin() { return Math.max(0, (this.currentWeight - this.settings.targetWeight) * 2).toFixed(1); },
+        progressPercent() {
+            const total = this.settings.initialWeight - this.settings.targetWeight;
+            const lost = this.settings.initialWeight - this.currentWeight;
+            return total <= 0 ? 100 : Math.min(100, Math.max(0, (lost/total)*100));
         },
-        statusIcon() {
-            if(this.statusType === 'error') return 'fa-times-circle';
-            if(this.statusType === 'success') return 'fa-check-circle';
-            return 'fa-info-circle';
-        }
+        currentStep() { return Math.floor(this.progressPercent); }
     },
     mounted() {
-        this.extractId();
-    },
-    watch: {
-        sheetInput() { this.extractId(); }
+        const saved = localStorage.getItem('wt_data');
+        if(saved) {
+            const p = JSON.parse(saved);
+            this.records = p.records || [];
+            this.sheetId = p.sheetId || this.sheetId;
+            this.sheetInput = this.sheetId;
+        }
     },
     methods: {
-        addLog(msg) {
-            const time = new Date().toLocaleTimeString();
-            this.logs.unshift({ time, msg });
+        showToast(msg, type = 'info') {
+            this.toastMsg = msg;
+            this.toastType = type;
+            setTimeout(() => this.toastMsg = '', 5000);
         },
-        extractId() {
+        saveSettings() {
             const match = this.sheetInput.match(/\/d\/([a-zA-Z0-9-_]+)/);
             if (match) this.sheetId = match[1];
-            else this.sheetId = "无效的链接格式";
+            else this.sheetId = this.sheetInput.trim();
+            
+            this.showToast('ID已更新，准备同步...');
+            this.syncGoogleSheet();
         },
-        async startSync() {
-            if (this.sheetId.length < 10) return alert('ID无效');
+        
+        // --- 核心修复逻辑 ---
+        async syncGoogleSheet() {
+            if (!this.sheetId) return this.showToast('请先配置 Sheet ID', 'error');
+            this.isLoading = true;
             
-            this.loading = true;
-            this.records = [];
-            this.logs = []; // 清空日志
-            this.statusType = 'info';
-            this.statusTitle = '正在连接 Google...';
-            this.statusMsg = '正在尝试下载 CSV 数据...';
-
-            this.addLog(`目标 ID: ${this.sheetId}`);
-            
-            // 使用 gviz 接口，强制不缓存
+            // 1. 构造 CSV 下载链接 (使用 gviz 接口)
             const url = `https://docs.google.com/spreadsheets/d/${this.sheetId}/gviz/tq?tqx=out:csv&sheet=Sheet1&_t=${Date.now()}`;
-            this.addLog(`请求 URL: <a href="${url}" target="_blank" class="underline text-blue-400">点击此处在浏览器中测试</a>`);
-
+            
             try {
                 const resp = await fetch(url);
+                if (!resp.ok) {
+                    if(resp.status === 404) throw new Error('链接无效，请检查ID');
+                    if(resp.status === 403) throw new Error('无权访问，请将表格设为"知道链接可查看"');
+                    throw new Error(`网络错误 (${resp.status})`);
+                }
                 
-                if (resp.status === 403) throw new Error('❌ 权限错误 (403)：请将表格权限设为"知道链接的任何人" (Anyone with the link)');
-                if (resp.status === 404) throw new Error('❌ 找不到表格 (404)：ID 错误或表格已删除');
-                if (!resp.ok) throw new Error(`❌ 网络错误：状态码 ${resp.status}`);
-
-                this.addLog('✅ 连接成功，正在解析 CSV...');
                 const csvText = await resp.text();
-                this.addLog(`收到数据长度: ${csvText.length} 字符`);
                 
-                // 解析
+                // 2. 解析 CSV
                 const workbook = XLSX.read(csvText, { type: 'string' });
-                const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                const sheetName = workbook.SheetNames[0]; // 自动获取第一个 Sheet 的名字
+                const sheet = workbook.Sheets[sheetName];
+                const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // 获取原始数组
 
-                this.addLog(`📊 解析出 ${jsonData.length} 行数据`);
-                
-                if (jsonData.length === 0) throw new Error('表格是空的');
+                if (jsonData.length < 2) throw new Error('表格似乎是空的');
 
-                // 寻找表头
-                let dateIdx = -1, weightIdx = -1, costIdx = -1;
-                let headerRow = -1;
+                // 3. 智能寻找表头 (扫描前10行)
+                let headerRowIndex = -1;
+                let dateColIdx = -1;
+                let weightColIdx = -1;
+                let costColIdx = -1;
 
-                // 遍历前5行找表头
-                for(let i=0; i<Math.min(5, jsonData.length); i++) {
-                    const rowStr = jsonData[i].join(' ').toLowerCase();
-                    this.addLog(`🔍 扫描第 ${i+1} 行: ${rowStr}`);
+                // 常见关键词
+                const dateKeywords = ['date', '日期', '时间'];
+                const weightKeywords = ['weight', '体重', 'kg', '公斤'];
+                const costKeywords = ['cost', '花费', '金额', 'price'];
+
+                for (let i = 0; i < Math.min(jsonData.length, 10); i++) {
+                    const row = jsonData[i].map(c => String(c).toLowerCase().trim());
+                    // 寻找匹配的列索引
+                    const dIdx = row.findIndex(c => dateKeywords.some(k => c.includes(k)));
+                    const wIdx = row.findIndex(c => weightKeywords.some(k => c.includes(k)));
                     
-                    if (rowStr.includes('日期') || rowStr.includes('date')) {
-                        headerRow = i;
-                        jsonData[i].forEach((cell, idx) => {
-                            const c = String(cell).trim();
-                            if(c === '日期' || c === 'Date') dateIdx = idx;
-                            if(c === '体重' || c === 'Weight') weightIdx = idx;
-                            if(c === '花费' || c === 'Cost') costIdx = idx;
-                        });
+                    if (dIdx !== -1 && wIdx !== -1) {
+                        headerRowIndex = i;
+                        dateColIdx = dIdx;
+                        weightColIdx = wIdx;
+                        costColIdx = row.findIndex(c => costKeywords.some(k => c.includes(k)));
                         break;
                     }
                 }
 
-                if (headerRow === -1 || dateIdx === -1 || weightIdx === -1) {
-                    throw new Error(`❌ 未找到表头！<br>请确保第一行包含：<strong>日期</strong> 和 <strong>体重</strong>`);
+                if (headerRowIndex === -1) {
+                    console.log("前10行数据预览:", jsonData.slice(0, 10));
+                    throw new Error('未找到包含"日期"和"体重"的表头行，请检查列名');
                 }
 
-                this.addLog(`✅ 找到表头在第 ${headerRow+1} 行: 日期(列${dateIdx}), 体重(列${weightIdx})`);
-
-                // 提取数据
+                // 4. 提取数据
+                const newRecords = [];
                 let successCount = 0;
-                for(let i = headerRow + 1; i < jsonData.length; i++) {
+
+                for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
                     const row = jsonData[i];
-                    if(!row[dateIdx]) continue;
+                    if (!row || !row[dateColIdx]) continue;
+
+                    // 处理日期 (支持 Excel 序列号 或 字符串)
+                    let dateStr = row[dateColIdx];
+                    let dateObj;
                     
-                    // 简单的日期处理
-                    let dateStr = row[dateIdx];
-                    // Excel 数字日期处理
-                    if(typeof dateStr === 'number') {
-                         const d = new Date((dateStr - (25567 + 2)) * 86400 * 1000);
-                         dateStr = d.toISOString().split('T')[0];
+                    // 尝试解析日期
+                    if (!isNaN(dateStr) && String(dateStr).indexOf('-') === -1 && String(dateStr).indexOf('/') === -1) {
+                        // 可能是 Excel 序列号 (例如 45200)
+                        dateObj = new Date((dateStr - (25567 + 2))*86400*1000); 
+                    } else {
+                        dateObj = new Date(dateStr);
                     }
 
-                    this.records.push({
-                        date: dateStr,
-                        weight: row[weightIdx],
-                        cost: costIdx !== -1 ? row[costIdx] : 0
+                    if (isNaN(dateObj.getTime())) continue;
+
+                    const weightVal = parseFloat(row[weightColIdx]);
+                    if (isNaN(weightVal)) continue;
+
+                    newRecords.push({
+                        id: Date.now() + i,
+                        date: dateObj.toISOString().split('T')[0],
+                        weight: weightVal,
+                        cost: costColIdx !== -1 ? (parseFloat(row[costColIdx]) || 0) : 0
                     });
                     successCount++;
                 }
 
-                this.statusType = 'success';
-                this.statusTitle = '同步成功！';
-                this.statusMsg = `成功读取 ${successCount} 条有效数据。`;
-                this.addLog(`🎉 完成！共 ${successCount} 条记录。`);
+                if (successCount === 0) throw new Error('找到了列，但没有解析出有效数据');
 
-            } catch (e) {
-                this.statusType = 'error';
-                this.statusTitle = '同步失败';
-                this.statusMsg = e.message.replace(/<[^>]*>/g, ''); // 去除HTML标签显示纯文本
-                this.addLog(e.message);
+                this.records = newRecords;
+                localStorage.setItem('wt_data', JSON.stringify({ records: this.records, sheetId: this.sheetId }));
+                this.showToast(`成功同步 ${successCount} 条数据！`, 'success');
+
+            } catch (err) {
+                console.error(err);
+                this.showToast(err.message, 'error');
             } finally {
-                this.loading = false;
+                this.isLoading = false;
             }
         }
     }
