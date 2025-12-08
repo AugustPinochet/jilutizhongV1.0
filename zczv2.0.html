@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>身材吃豆人 (备注修复版)</title>
+    <title>身材吃豆人 (Pro版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
@@ -37,43 +36,56 @@
         }
         .pac-cell.eaten { background-color: #ffedd5; box-shadow: inset 0 0 0 1px #fed7aa; }
         .dot { width: 6px; height: 6px; background-color: #cbd5e1; border-radius: 50%; }
-        .pacman { 
-            width: 24px; height: 24px; background: #f59e0b; border-radius: 50%; 
-            position: relative; z-index: 10;
+        
+        /* 修复版吃豆人 CSS */
+        .pacman {
+            width: 24px; height: 24px;
+            background: #f59e0b;
+            border-radius: 50%;
+            position: relative;
+            z-index: 10;
             box-shadow: 0 4px 12px rgba(245, 158, 11, 0.5);
-            animation: chomp 0.3s infinite alternate;
+            /* 使用 conic-gradient 实现嘴巴，避免 clip-path 切掉头部 */
+            background: conic-gradient(#f59e0b 30deg, transparent 30deg, transparent 330deg, #f59e0b 330deg);
+            border-radius: 50%;
+            animation: chomp 0.25s infinite alternate linear;
         }
-        @keyframes chomp { from { clip-path: polygon(100% 0%, 100% 100%, 50% 50%); } to { clip-path: polygon(100% 20%, 100% 80%, 50% 50%); } }
+
+        /* 嘴巴开合动画：通过改变角度 */
+        @keyframes chomp {
+            0% { background: conic-gradient(#f59e0b 30deg, transparent 30deg, transparent 330deg, #f59e0b 330deg); transform: rotate(0deg); }
+            100% { background: conic-gradient(#f59e0b 0deg, transparent 0deg, transparent 360deg, #f59e0b 360deg); transform: rotate(0deg); }
+        }
         
         .input-light { background: #ffffff; border: 1px solid #e2e8f0; color: #1e293b; transition: all 0.3s; }
         .input-light:focus { border-color: #6366f1; outline: none; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
         
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        /* 自定义滚动条 */
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
 <body>
 
-<div id="app" v-cloak class="min-h-screen p-4 max-w-5xl mx-auto pb-20">
+<div id="app" v-cloak class="min-h-screen p-4 max-w-6xl mx-auto pb-20">
     
-    <!-- 通知 -->
     <div v-if="msg" class="fixed top-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-xl text-sm font-bold flex items-center gap-2 transition-all duration-300 border border-white/20"
          :class="msgType === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'">
         <i class="fas" :class="msgType === 'success' ? 'fa-check' : 'fa-exclamation-circle'"></i> {{ msg }}
     </div>
 
-    <!-- 头部 -->
-    <header class="flex justify-between items-center mb-8">
-        <div>
+    <header class="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+        <div class="text-center sm:text-left">
             <h1 class="text-2xl font-black text-slate-800 tracking-tight">
                 <span class="text-amber-500 mr-2"><i class="fas fa-ghost"></i></span>身材吃豆人
             </h1>
             <p class="text-xs text-slate-500 mt-1 font-medium pl-1">
-                <i class="fab fa-github mr-1"></i> 备注独立列版
+                <i class="fas fa-chart-line mr-1"></i> Pro版：缩放图表 · 费用填充 · 斤单位
             </p>
         </div>
-        <div class="flex gap-2">
+        <div class="flex gap-2 w-full sm:w-auto justify-center">
             <input type="file" ref="fileInput" @change="handleExcelUpload" accept=".xlsx, .xls, .csv" class="hidden">
             <button @click="$refs.fileInput.click()" :disabled="loading" class="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-sm">
                 <i class="fas fa-file-excel text-emerald-500"></i> <span class="hidden sm:inline">导入</span>
@@ -84,17 +96,20 @@
         </div>
     </header>
 
-    <!-- 配置面板 -->
     <transition name="fade">
-        <div v-if="showConfig" class="glass p-6 rounded-3xl mb-8 border-l-4 border-indigo-500 shadow-lg">
+        <div v-if="showConfig" class="glass p-6 rounded-3xl mb-8 border-l-4 border-indigo-500 shadow-lg relative z-20">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="font-bold text-lg text-slate-700 flex items-center gap-2">
-                    <i class="fas fa-sliders-h text-indigo-500"></i> 设置
+                    <i class="fas fa-sliders-h text-indigo-500"></i> 数据设置
                 </h3>
+                <button @click="showConfig = false" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
             </div>
             <div class="space-y-4">
+                <div class="p-3 bg-amber-50 rounded-lg text-xs text-amber-700 border border-amber-100">
+                    <i class="fas fa-shield-alt mr-1"></i> 数据安全：Token仅保存在本地浏览器，不会上传至任何第三方服务器。
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><label class="block text-xs font-bold text-slate-400 mb-1">GitHub Token</label><input type="password" v-model="config.token" class="w-full input-light rounded-lg px-3 py-2 text-sm font-mono"></div>
+                    <div><label class="block text-xs font-bold text-slate-400 mb-1">GitHub Token</label><input type="password" v-model="config.token" placeholder="ghp_..." class="w-full input-light rounded-lg px-3 py-2 text-sm font-mono"></div>
                     <div><label class="block text-xs font-bold text-slate-400 mb-1">Gist ID</label><input type="text" v-model="config.gistId" class="w-full input-light rounded-lg px-3 py-2 text-sm font-mono"></div>
                 </div>
                 <div class="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
@@ -107,117 +122,158 @@
                         <i class="fas fa-cloud-download-alt"></i> 仅拉取云端数据
                     </button>
                     <button @click="saveConfigAndPush" class="px-6 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold shadow-lg shadow-indigo-200 transition flex items-center justify-center gap-2">
-                        <i class="fas fa-save"></i> 保存并同步
+                        <i class="fas fa-save"></i> 保存配置并同步
                     </button>
                 </div>
             </div>
         </div>
     </transition>
 
-    <!-- 主界面 -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        <!-- 左侧：仪表盘 -->
-        <div class="lg:col-span-5 glass rounded-3xl p-8 flex flex-col items-center relative overflow-hidden border border-white">
-            <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-amber-300 via-orange-400 to-rose-400"></div>
-            
-            <div class="text-center mb-8 mt-2">
-                <p class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Current Weight</p>
-                <div class="text-6xl font-black text-slate-800 tracking-tighter">
-                    {{ currentWeight }}<span class="text-xl text-slate-400 ml-1 font-normal">kg</span>
+        <div class="lg:col-span-4 space-y-6">
+            <div class="glass rounded-3xl p-8 flex flex-col items-center relative overflow-hidden border border-white">
+                <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-amber-300 via-orange-400 to-rose-400"></div>
+                
+                <div class="text-center mb-8 mt-2 w-full">
+                    <div class="flex justify-between items-end px-4 mb-2">
+                        <span class="text-slate-400 text-xs font-bold uppercase tracking-wider">Current</span>
+                        <span class="text-slate-400 text-xs font-bold uppercase tracking-wider">Target: {{ config.target }}</span>
+                    </div>
+                    <div class="flex justify-center items-baseline gap-1">
+                        <span class="text-6xl font-black text-slate-800 tracking-tighter">{{ currentWeight }}</span>
+                        <span class="text-xl text-slate-400 font-normal">kg</span>
+                    </div>
+                    <div class="text-sm font-bold text-indigo-500 mt-1">
+                        ≈ {{ (currentWeight * 2).toFixed(1) }} 斤
+                    </div>
                 </div>
-                <div class="mt-3 inline-flex items-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-xs font-bold border border-indigo-100">
-                    <i class="fas fa-calendar-alt"></i> 预计达成: {{ predictedDate }}
+
+                <div class="pac-grid mb-8 w-full">
+                    <div v-for="n in 100" :key="n" class="pac-cell" :class="{'eaten': n < currentStep}">
+                        <div v-if="n === currentStep" class="pacman"></div>
+                        <div v-else-if="n === 100" class="fas fa-flag-checkered text-rose-500 text-lg"></div>
+                        <div v-else-if="n > currentStep" class="dot"></div>
+                    </div>
+                </div>
+
+                <div class="w-full grid grid-cols-3 gap-2 text-sm bg-slate-50/80 rounded-2xl p-4 border border-slate-100">
+                    <div class="text-center">
+                        <div class="text-emerald-500 font-black text-lg">{{ lostJin }}</div>
+                        <div class="text-[10px] text-slate-400 font-bold uppercase">已减(斤)</div>
+                    </div>
+                    <div class="text-center border-x border-slate-200 px-2">
+                        <div class="text-amber-500 font-black text-lg">{{ progress }}%</div>
+                        <div class="text-[10px] text-slate-400 font-bold uppercase">进度</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-rose-500 font-black text-lg">{{ remainJin }}</div>
+                        <div class="text-[10px] text-slate-400 font-bold uppercase">剩余(斤)</div>
+                    </div>
                 </div>
             </div>
 
-            <div class="pac-grid mb-8 w-full">
-                <div v-for="n in 100" :key="n" class="pac-cell" :class="{'eaten': n < currentStep}">
-                    <div v-if="n === currentStep" class="pacman"></div>
-                    <div v-else-if="n === 100" class="fas fa-flag-checkered text-rose-500 text-lg"></div>
-                    <div v-else-if="n > currentStep" class="dot"></div>
+            <div class="glass rounded-3xl p-6 border border-white">
+                <h3 class="text-xs font-bold text-slate-400 mb-4 uppercase tracking-wide flex items-center gap-2">
+                    <i class="fas fa-coins text-amber-400"></i> 费用统计 (自动填充)
+                </h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+                        <div class="text-indigo-600 font-black text-xl">¥{{ stats.totalCost }}</div>
+                        <div class="text-xs text-indigo-400 font-bold mt-1">累计花费</div>
+                    </div>
+                    <div class="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+                        <div class="text-emerald-600 font-black text-xl">¥{{ stats.avgCost }}</div>
+                        <div class="text-xs text-emerald-500 font-bold mt-1">日均花费</div>
+                    </div>
                 </div>
-            </div>
-
-            <div class="w-full grid grid-cols-3 gap-4 text-sm px-2 bg-slate-50/80 rounded-2xl py-5 border border-slate-100">
-                <div class="text-center">
-                    <div class="text-emerald-500 font-black text-xl">{{ lostJin }}</div>
-                    <div class="text-xs text-slate-400 font-medium mt-1">已减 (斤)</div>
-                </div>
-                <div class="text-center border-x border-slate-200">
-                    <div class="text-amber-500 font-black text-xl">{{ progress }}%</div>
-                    <div class="text-xs text-slate-400 font-medium mt-1">总进度</div>
-                </div>
-                <div class="text-center">
-                    <div class="text-rose-500 font-black text-xl">{{ remainJin }}</div>
-                    <div class="text-xs text-slate-400 font-medium mt-1">剩余 (斤)</div>
+                <div class="mt-3 text-[10px] text-slate-400 text-center">
+                    * 未填写的日期将自动按最近一次记录的费用计算
                 </div>
             </div>
         </div>
 
-        <!-- 右侧：操作区 -->
-        <div class="lg:col-span-7 flex flex-col gap-6">
+        <div class="lg:col-span-8 flex flex-col gap-6">
             
-            <!-- 录入区 -->
-            <div class="glass rounded-3xl p-6 border border-white">
-                <h3 class="text-sm font-bold text-slate-400 mb-4 uppercase tracking-wide flex items-center gap-2">
-                    <i class="fas fa-pen-fancy"></i> 今日打卡
-                </h3>
-                <div class="flex flex-col gap-3">
-                    <div class="flex gap-3">
-                        <input type="date" v-model="input.date" class="input-light rounded-xl px-4 py-3 text-sm w-1/3 font-bold text-slate-600 shadow-sm">
-                        <input type="number" v-model.number="input.weight" placeholder="体重" class="input-light rounded-xl px-4 py-3 text-sm w-1/3 font-bold shadow-sm">
-                        <input type="number" v-model.number="input.cost" placeholder="花费" class="input-light rounded-xl px-4 py-3 text-sm w-1/3 font-bold shadow-sm">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="glass rounded-3xl p-6 border border-white">
+                    <h3 class="text-sm font-bold text-slate-400 mb-4 uppercase tracking-wide">
+                        <i class="fas fa-pen-fancy mr-1"></i> 今日打卡
+                    </h3>
+                    <div class="space-y-3">
+                        <div class="flex gap-2">
+                            <input type="date" v-model="input.date" class="input-light rounded-xl px-3 py-2 text-sm flex-1 font-bold text-slate-600">
+                            <input type="number" v-model.number="input.weight" placeholder="kg" step="0.1" class="input-light rounded-xl px-3 py-2 text-sm w-20 font-bold">
+                            <input type="number" v-model.number="input.cost" placeholder="¥" class="input-light rounded-xl px-3 py-2 text-sm w-20 font-bold">
+                        </div>
+                        <input type="text" v-model="input.note" @keyup.enter="addRecord" placeholder="备注：如 聚餐/运动..." class="w-full input-light rounded-xl px-3 py-2 text-sm font-medium">
+                        <button @click="addRecord" :disabled="loading" class="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold transition flex justify-center items-center gap-2 text-sm">
+                            <i class="fas" :class="loading ? 'fa-spinner fa-spin' : 'fa-plus'"></i>
+                            {{ loading ? '同步中...' : '记录' }}
+                        </button>
                     </div>
-                    <input type="text" v-model="input.note" @keyup.enter="addRecord" placeholder="备注 (如: 聚餐/运动/生理期) - 回车保存" class="w-full input-light rounded-xl px-4 py-3 text-sm font-medium shadow-sm">
                 </div>
-                
-                <button @click="addRecord" :disabled="loading" class="w-full mt-4 bg-slate-800 hover:bg-slate-700 text-white py-3.5 rounded-xl font-bold transition flex justify-center items-center gap-2 shadow-lg shadow-slate-300/50 transform active:scale-[0.99]">
-                    <i class="fas" :class="loading ? 'fa-spinner fa-spin' : 'fa-plus'"></i>
-                    {{ loading ? '正在同步...' : '记录并同步' }}
-                </button>
-            </div>
 
-            <div class="glass rounded-3xl p-5 h-64 relative border border-white">
-                <div id="chart" class="w-full h-full"></div>
-                <div v-if="records.length === 0" class="absolute inset-0 flex items-center justify-center text-slate-400 text-sm font-medium">
-                    暂无数据，请添加或导入
+                <div class="glass rounded-3xl p-5 h-[260px] relative border border-white">
+                    <div id="chart" class="w-full h-full"></div>
+                    <div v-if="records.length === 0" class="absolute inset-0 flex items-center justify-center text-slate-400 text-sm font-medium bg-white/50 backdrop-blur-sm rounded-3xl">
+                        暂无数据，请添加或导入
+                    </div>
                 </div>
             </div>
 
-            <!-- 历史记录列表 -->
-            <div class="glass rounded-3xl p-6 flex-1 overflow-hidden flex flex-col min-h-[300px] border border-white">
+            <div class="glass rounded-3xl p-6 flex-1 overflow-hidden flex flex-col min-h-[400px] border border-white relative">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wide">历史记录</h3>
-                    <span class="bg-slate-100 text-slate-500 text-xs px-2 py-1 rounded-md font-bold">{{ records.length }} 条</span>
+                    <div class="flex items-center gap-3">
+                        <span class="text-[10px] text-slate-400 hidden sm:inline-block"><i class="fas fa-mouse-pointer"></i> 悬停查看备注</span>
+                        <span class="bg-slate-100 text-slate-500 text-xs px-2 py-1 rounded-md font-bold">{{ records.length }} 条</span>
+                    </div>
                 </div>
-                <div class="overflow-y-auto pr-2 custom-scroll flex-1">
-                    <table class="w-full text-sm text-left text-slate-600">
-                        <thead>
+                
+                <div class="overflow-x-auto custom-scroll flex-1">
+                    <table class="w-full text-sm text-left text-slate-600 min-w-[600px]">
+                        <thead class="sticky top-0 bg-white/95 backdrop-blur z-10">
                             <tr class="text-xs text-slate-400 border-b border-slate-100">
                                 <th class="pb-3 pl-2 w-24">日期</th>
-                                <th class="pb-3 w-16">体重</th>
-                                <th class="pb-3 w-16">变化</th>
-                                <th class="pb-3">备注</th> <!-- 独立备注列 -->
+                                <th class="pb-3 w-16">体重(kg)</th>
+                                <th class="pb-3 w-16 text-indigo-500">体重(斤)</th>
+                                <th class="pb-3 w-20">日变化(斤)</th>
+                                <th class="pb-3 w-20">总变化(斤)</th>
+                                <th class="pb-3 w-16">费用</th>
+                                <th class="pb-3">备注</th>
                                 <th class="pb-3 text-right pr-2 w-10">操作</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="(r, i) in sortedRecords" :key="i" class="border-b border-slate-50 hover:bg-slate-50 transition group">
-                                <td class="py-3 pl-2 font-mono text-slate-500 align-middle">{{ r.date }}</td>
-                                <td class="py-3 font-bold text-slate-800 align-middle">{{ r.weight }}</td>
-                                <td class="py-3 font-bold align-middle">
-                                    <span :class="getDiffColor(r.weight)" class="px-2 py-1 rounded text-xs bg-opacity-10 whitespace-nowrap">
-                                        {{ getDiffText(r.weight) }}
+                            <tr v-for="(r, i) in tableData" :key="r.date" class="border-b border-slate-50 hover:bg-slate-50 transition group">
+                                <td class="py-3 pl-2 font-mono text-slate-500">{{ r.date }}</td>
+                                <td class="py-3 font-bold text-slate-800">{{ r.weight }}</td>
+                                <td class="py-3 font-bold text-indigo-600">{{ (r.weight * 2).toFixed(1) }}</td>
+                                
+                                <td class="py-3 font-bold">
+                                    <span v-if="r.dailyDiff !== null" :class="r.dailyDiff <= 0 ? 'text-emerald-500' : 'text-rose-500'">
+                                        <i class="fas" :class="r.dailyDiff <= 0 ? 'fa-arrow-down' : 'fa-arrow-up'" style="font-size: 10px;"></i>
+                                        {{ Math.abs(r.dailyDiff).toFixed(1) }}
+                                    </span>
+                                    <span v-else class="text-slate-300">-</span>
+                                </td>
+
+                                <td class="py-3 font-bold">
+                                    <span :class="getDiffColor(r.weight)" class="px-2 py-0.5 rounded text-xs bg-opacity-10 whitespace-nowrap">
+                                        {{ getDiffTextJin(r.weight) }}
                                     </span>
                                 </td>
-                                <!-- 备注内容 -->
-                                <td class="py-3 text-xs text-slate-500 align-middle">
-                                    <div class="truncate max-w-[120px] sm:max-w-[200px]" :title="r.note">
-                                        {{ r.note || '-' }}
-                                    </div>
+
+                                <td class="py-3 font-mono text-slate-500">
+                                    <span v-if="r.cost > 0">¥{{ r.cost }}</span>
+                                    <span v-else class="text-slate-200">-</span>
                                 </td>
-                                <td class="py-3 text-right pr-2 align-middle">
+
+                                <td class="py-3 text-xs text-slate-500">
+                                    <div class="truncate max-w-[120px]" :title="r.note">{{ r.note || '-' }}</div>
+                                </td>
+                                <td class="py-3 text-right pr-2">
                                     <button @click="deleteRecord(r)" class="text-slate-300 hover:text-rose-500 transition opacity-0 group-hover:opacity-100">
                                         <i class="fas fa-trash-alt"></i>
                                     </button>
@@ -242,8 +298,8 @@ createApp({
             msg: '',
             msgType: 'info',
             config: {
-                token: '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', 
-                gistId: 'bad89a736eb73d5165930e216d568ce4',       
+                token: '', // 安全：清空硬编码 Token
+                gistId: '',       
                 start: 80,
                 target: 65
             },
@@ -258,14 +314,46 @@ createApp({
         }
     },
     computed: {
-        sortedRecords() {
-            return [...this.records].sort((a, b) => new Date(b.date) - new Date(a.date));
-        },
+        // 核心计算属性：处理排序、费用填充、日变化计算
         timelineRecords() {
-            return [...this.records].sort((a, b) => new Date(a.date) - new Date(b.date));
+            // 1. 按日期升序排序
+            const sorted = [...this.records].sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            // 2. 遍历计算衍生数据（费用填充 + 日变化）
+            let lastValidCost = 0;
+            
+            return sorted.map((record, index) => {
+                // 费用逻辑：如果当前cost未填写(0或空)，使用上一次有效cost
+                let displayCost = 0;
+                if (record.cost && parseFloat(record.cost) > 0) {
+                    displayCost = parseFloat(record.cost);
+                    lastValidCost = displayCost;
+                } else {
+                    displayCost = lastValidCost; // 沿用最近一次
+                }
+
+                // 日变化逻辑 (斤)
+                let dailyDiff = null;
+                if (index > 0) {
+                    const prevWeight = sorted[index - 1].weight;
+                    dailyDiff = (record.weight - prevWeight) * 2; // 转换为斤
+                }
+
+                return {
+                    ...record,
+                    weight: parseFloat(record.weight),
+                    // 标记这是计算后的费用，用于统计，但表格显示原始数据
+                    filledCost: displayCost, 
+                    dailyDiff: dailyDiff
+                };
+            });
+        },
+        // 表格用的倒序数据
+        tableData() {
+            return [...this.timelineRecords].reverse();
         },
         currentWeight() {
-            return this.records.length ? this.timelineRecords[this.timelineRecords.length-1].weight : this.config.start;
+            return this.timelineRecords.length ? this.timelineRecords[this.timelineRecords.length-1].weight : this.config.start;
         },
         lostJin() {
             return ((this.config.start - this.currentWeight) * 2).toFixed(1);
@@ -284,36 +372,36 @@ createApp({
         currentStep() {
             return Math.floor(this.progress);
         },
-        predictedDate() {
+        // 统计信息
+        stats() {
             const recs = this.timelineRecords;
-            if(recs.length < 2) return '数据不足';
-            const first = recs[0];
-            const last = recs[recs.length - 1];
-            const totalDays = (new Date(last.date) - new Date(first.date)) / (1000 * 3600 * 24);
-            const totalLost = first.weight - last.weight;
-            if(totalDays <= 0 || totalLost <= 0) return '计算中...';
-            const dailyRate = totalLost / totalDays;
-            const remaining = last.weight - this.config.target;
-            if(remaining <= 0) return '已达成!';
-            const daysNeeded = remaining / dailyRate;
-            if(daysNeeded > 1000) return '需长期坚持';
-            const targetDate = new Date();
-            targetDate.setDate(targetDate.getDate() + daysNeeded);
-            return targetDate.toISOString().split('T')[0];
+            if (recs.length === 0) return { totalCost: 0, avgCost: 0 };
+            
+            const totalCost = recs.reduce((sum, r) => sum + r.filledCost, 0);
+            const avgCost = (totalCost / recs.length).toFixed(1);
+            
+            return {
+                totalCost: totalCost.toFixed(0),
+                avgCost: avgCost
+            };
         }
     },
     mounted() {
-        const saved = localStorage.getItem('pacman_github_auth');
+        const saved = localStorage.getItem('pacman_config');
         if(saved) {
-            const parsed = JSON.parse(saved);
-            this.config.token = parsed.token || this.config.token;
-            this.config.gistId = parsed.gistId || this.config.gistId;
+            try {
+                const parsed = JSON.parse(saved);
+                this.config = { ...this.config, ...parsed };
+            } catch(e) {}
         }
-        if(this.config.token && this.config.gistId) {
-            this.pullData();
-        } else {
+        
+        // 如果没有配置，自动打开配置面板
+        if(!this.config.token || !this.config.gistId) {
             this.showConfig = true;
+        } else {
+            this.pullData();
         }
+
         this.$nextTick(() => this.initChart());
         window.addEventListener('resize', () => this.chart && this.chart.resize());
     },
@@ -325,8 +413,8 @@ createApp({
         },
         toggleConfig() { this.showConfig = !this.showConfig; },
         
-        getDiffText(weight) {
-            const diff = weight - this.config.start;
+        getDiffTextJin(weight) {
+            const diff = (weight - this.config.start) * 2;
             return diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1);
         },
         getDiffColor(weight) {
@@ -336,15 +424,15 @@ createApp({
         },
 
         async saveConfigAndPush() {
-            localStorage.setItem('pacman_github_auth', JSON.stringify({ token: this.config.token, gistId: this.config.gistId }));
+            localStorage.setItem('pacman_config', JSON.stringify(this.config));
             this.showConfig = false;
             if(this.records.length === 0) {
-                this.notify('本地无数据！请先点击"仅拉取"防止覆盖云端', 'error');
-                this.showConfig = true;
-                return;
+                this.notify('本地无数据，尝试拉取...', 'info');
+                await this.pullData();
+            } else {
+                this.notify('配置更新，正在同步...');
+                await this.pushData();
             }
-            this.notify('配置已更新，正在同步...');
-            await this.pushData();
         },
 
         async pullData() {
@@ -358,24 +446,19 @@ createApp({
                     headers: { 'Authorization': `token ${this.config.token}` },
                     cache: 'no-store'
                 });
-                if(!res.ok) throw new Error('连接失败，请检查Token/ID');
+                if(!res.ok) throw new Error('连接失败 (404/401)');
                 const data = await res.json();
                 const file = data.files['data.json'];
                 if(file) {
                     const json = JSON.parse(file.content);
-                    if(Array.isArray(json)) {
-                        this.records = json;
-                    } else {
-                        this.records = json.records || [];
-                        if(json.meta) {
-                            this.config.start = json.meta.start || this.config.start;
-                            this.config.target = json.meta.target || this.config.target;
-                        }
+                    // 兼容旧格式
+                    this.records = Array.isArray(json) ? json : (json.records || []);
+                    if(!Array.isArray(json) && json.meta) {
+                        this.config.start = json.meta.start || this.config.start;
+                        this.config.target = json.meta.target || this.config.target;
                     }
                     this.initChart();
-                    this.notify('云端数据拉取成功');
-                } else {
-                    this.notify('云端文件为空或不存在', 'error');
+                    this.notify('数据拉取成功');
                 }
             } catch(e) {
                 this.notify(e.message, 'error');
@@ -386,9 +469,6 @@ createApp({
 
         async pushData() {
             if(!this.config.token || !this.config.gistId) return;
-            if(this.records.length === 0) {
-                if(!confirm("⚠️ 警告：本地没有任何数据！\n继续同步将会清空云端的所有记录。\n\n确定要继续吗？")) return;
-            }
             this.loading = true;
             try {
                 const fullData = {
@@ -402,7 +482,7 @@ createApp({
                     body: JSON.stringify(payload)
                 });
                 if(!res.ok) throw new Error('上传失败');
-                this.notify('已同步至云端');
+                this.notify('已同步云端');
             } catch(e) {
                 this.notify(e.message, 'error');
             } finally {
@@ -421,32 +501,31 @@ createApp({
                     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
                     
                     let dateIdx = -1, weightIdx = -1, costIdx = -1, noteIdx = -1;
-                    let headerRowIndex = 0;
-
-                    for(let i=0; i<Math.min(5, rows.length); i++) {
+                    // 智能寻找表头
+                    for(let i=0; i<Math.min(10, rows.length); i++) {
                         const rowStr = rows[i].join(' ').toLowerCase();
                         if(rowStr.includes('date') || rowStr.includes('日期')) {
-                            headerRowIndex = i;
                             rows[i].forEach((cell, idx) => {
                                 const txt = String(cell).trim().toLowerCase();
                                 if(txt.includes('date') || txt.includes('日期')) dateIdx = idx;
                                 if(txt.includes('weight') || txt.includes('体重')) weightIdx = idx;
-                                if(txt.includes('cost') || txt.includes('花费')) costIdx = idx;
-                                if(txt.includes('note') || txt.includes('remark') || txt.includes('备注')) noteIdx = idx;
+                                if(txt.includes('cost') || txt.includes('花费') || txt.includes('费用')) costIdx = idx;
+                                if(txt.includes('note') || txt.includes('备注')) noteIdx = idx;
                             });
+                            // 跳过表头行
+                            rows.splice(0, i + 1); 
                             break;
                         }
                     }
 
-                    if(dateIdx === -1 || weightIdx === -1) throw new Error('未找到日期或体重列');
+                    if(dateIdx === -1 || weightIdx === -1) throw new Error('未识别到日期或体重列');
                     
                     const newMap = new Map();
                     this.records.forEach(r => newMap.set(r.date, r));
                     
                     let count = 0;
-                    for(let i = headerRowIndex + 1; i < rows.length; i++) {
-                        const row = rows[i];
-                        if(!row[dateIdx]) continue;
+                    rows.forEach(row => {
+                        if(!row[dateIdx]) return;
                         const dateStr = this.parseExcelDate(row[dateIdx]);
                         const weightVal = parseFloat(row[weightIdx]);
                         
@@ -459,9 +538,9 @@ createApp({
                             });
                             count++;
                         }
-                    }
+                    });
                     this.records = Array.from(newMap.values());
-                    this.notify(`导入 ${count} 条数据`);
+                    this.notify(`成功导入 ${count} 条`);
                     this.initChart();
                     this.pushData();
                 } catch (err) {
@@ -501,19 +580,31 @@ createApp({
         },
 
         async deleteRecord(record) {
-            if(!confirm('确定删除?')) return;
-            this.records = this.records.filter(r => r !== record);
-            this.initChart();
-            await this.pushData();
+            if(!confirm('确定删除此条记录?')) return;
+            // 注意：这里要用原始的record对象查找
+            const targetIndex = this.records.findIndex(r => r.date === record.date);
+            if(targetIndex > -1) {
+                this.records.splice(targetIndex, 1);
+                this.initChart();
+                await this.pushData();
+            }
         },
 
         initChart() {
             const dom = document.getElementById('chart');
             if(!dom) return;
-            if(!this.chart) this.chart = echarts.init(dom);
-            const data = this.timelineRecords;
+            if(this.chart) this.chart.dispose(); // 销毁重建以适应配置变化
+            this.chart = echarts.init(dom);
+            
+            const data = this.timelineRecords; // 使用计算好的带填充费用的数据
+            
             this.chart.setOption({
-                grid: { top: 20, right: 20, bottom: 20, left: 40, containLabel: true },
+                grid: { top: 30, right: 20, bottom: 40, left: 45, containLabel: false },
+                // 启用缩放
+                dataZoom: [
+                    { type: 'inside', start: 0, end: 100 },
+                    { type: 'slider', bottom: 0, height: 15, handleSize: '100%' }
+                ],
                 tooltip: { 
                     trigger: 'axis', 
                     backgroundColor: 'rgba(255, 255, 255, 0.95)', 
@@ -522,9 +613,22 @@ createApp({
                     extraCssText: 'box-shadow: 0 4px 12px rgba(0,0,0,0.1);',
                     formatter: function(params) {
                         const item = data[params[0].dataIndex];
-                        let html = `<div class="font-bold mb-1">${item.date}</div>`;
-                        html += `<div>体重: <b>${item.weight}</b> kg</div>`;
-                        if(item.note) html += `<div class="text-xs text-slate-500 mt-1" style="max-width:150px;white-space:normal;">${item.note}</div>`;
+                        let html = `<div class="font-bold mb-1 border-b pb-1 text-slate-700">${item.date}</div>`;
+                        html += `<div class="flex justify-between gap-4"><span>体重:</span> <b>${item.weight} kg</b></div>`;
+                        html += `<div class="flex justify-between gap-4 text-indigo-500"><span>(市斤):</span> <b>${(item.weight*2).toFixed(1)} 斤</b></div>`;
+                        if(item.dailyDiff !== null) {
+                            const color = item.dailyDiff <= 0 ? 'text-emerald-500' : 'text-rose-500';
+                            const icon = item.dailyDiff <= 0 ? '↓' : '↑';
+                            html += `<div class="flex justify-between gap-4 ${color}"><span>日变:</span> <b>${icon} ${Math.abs(item.dailyDiff).toFixed(1)} 斤</b></div>`;
+                        }
+                        if(item.filledCost) {
+                            const isEstimated = !item.cost; // 如果原始cost为空，则是估算的
+                            html += `<div class="flex justify-between gap-4 text-slate-500 mt-1 pt-1 border-t">
+                                <span>费用:</span> 
+                                <span>¥${item.filledCost}${isEstimated ? '*' : ''}</span>
+                            </div>`;
+                        }
+                        if(item.note) html += `<div class="text-xs text-slate-400 mt-1 max-w-[180px] break-words bg-slate-50 p-1 rounded">"${item.note}"</div>`;
                         return html;
                     }
                 },
@@ -532,21 +636,22 @@ createApp({
                     type: 'category', 
                     data: data.map(r => r.date),
                     axisLine: { lineStyle: { color: '#cbd5e1' } },
-                    axisLabel: { color: '#64748b' }
+                    axisLabel: { color: '#94a3b8', fontSize: 10 }
                 },
                 yAxis: { 
                     type: 'value', 
                     scale: true, 
                     splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
-                    axisLabel: { color: '#94a3b8' }
+                    axisLabel: { color: '#94a3b8', fontSize: 10 }
                 },
                 series: [{
+                    name: '体重',
                     data: data.map(r => r.weight),
                     type: 'line',
                     smooth: true,
-                    symbolSize: 8,
-                    itemStyle: { color: '#f59e0b', borderColor: '#fff', borderWidth: 2 },
-                    lineStyle: { width: 4, color: '#f59e0b', shadowColor: 'rgba(245, 158, 11, 0.3)', shadowBlur: 10 },
+                    symbolSize: 6,
+                    itemStyle: { color: '#f59e0b', borderColor: '#fff', borderWidth: 1 },
+                    lineStyle: { width: 3, color: '#f59e0b' },
                     areaStyle: {
                         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
                             { offset: 0, color: 'rgba(245, 158, 11, 0.2)' },
@@ -561,4 +666,3 @@ createApp({
 </script>
 </body>
 </html>
-```
