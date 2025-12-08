@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>身材吃豆人 (终极修复版)</title>
+    <title>身材吃豆人 (连续图表版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
@@ -19,6 +19,7 @@
         }
         [v-cloak] { display: none; }
         
+        /* 玻璃拟态卡片 */
         .glass {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(12px);
@@ -79,7 +80,7 @@
     <header class="flex justify-between items-center mb-6">
         <div class="flex items-center gap-2">
             <div class="text-amber-500 text-2xl"><i class="fas fa-ghost"></i></div>
-            <h1 class="text-lg font-black text-slate-800">身材吃豆人 <span class="text-[10px] text-slate-400 font-normal uppercase ml-1">Ultimate Fix</span></h1>
+            <h1 class="text-lg font-black text-slate-800">身材吃豆人 <span class="text-[10px] text-slate-400 font-normal uppercase ml-1">Continuous</span></h1>
         </div>
         <div class="flex gap-2">
             <input type="file" ref="fileInput" @change="handleExcelUpload" accept=".xlsx,.xls,.csv" class="hidden">
@@ -139,7 +140,7 @@
             <div class="glass rounded-2xl p-4">
                 <div class="grid grid-cols-2 gap-4 mb-4 border-b border-slate-100 pb-4">
                     <div>
-                        <div class="text-xs text-slate-400 font-bold mb-1"><i class="far fa-clock"></i> 已坚持</div>
+                        <div class="text-xs text-slate-400 font-bold mb-1"><i class="far fa-clock"></i> 已记录</div>
                         <div class="text-slate-700 font-black text-lg">{{ timeStats.daysSpent }} <span class="text-xs font-normal">天</span></div>
                     </div>
                     <div>
@@ -185,7 +186,7 @@
             
             <div class="glass rounded-xl p-3 flex flex-col sm:flex-row gap-3 items-center justify-between">
                 <div class="text-xs font-bold text-slate-400 uppercase flex items-center gap-2">
-                    <i class="fas fa-filter"></i> 筛选区间
+                    <i class="fas fa-magic"></i> 智能补全模式
                 </div>
                 <div class="flex items-center gap-2 w-full sm:w-auto">
                     <input type="date" v-model="filter.start" class="input-light rounded-lg px-2 py-1 text-xs font-bold text-slate-600 flex-1">
@@ -197,15 +198,15 @@
 
             <div class="glass rounded-2xl p-4 h-[350px] relative">
                 <div id="chart" class="w-full h-full"></div>
-                <div v-if="filteredRecords.length === 0" class="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">
-                    该区间无数据
+                <div v-if="chartData.length === 0" class="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">
+                    暂无数据
                 </div>
             </div>
 
             <div class="glass rounded-2xl overflow-hidden flex flex-col h-[500px]">
                 <div class="p-3 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
-                    <span class="text-xs font-bold text-slate-500">详细记录</span>
-                    <span class="text-[10px] bg-white border px-2 py-0.5 rounded text-slate-400">显示 {{ filteredRecords.length }} 条</span>
+                    <span class="text-xs font-bold text-slate-500">原始数据记录</span>
+                    <span class="text-[10px] bg-white border px-2 py-0.5 rounded text-slate-400">{{ tableData.length }} 条</span>
                 </div>
                 <div class="overflow-auto custom-scroll flex-1 p-2">
                     <table class="w-full text-sm text-left text-slate-600">
@@ -263,64 +264,97 @@ createApp({
             msgType: 'info',
             config: { token: '', gistId: '', start: 80, target: 65 },
             input: { date: new Date().toISOString().split('T')[0], weight: '', cost: '', note: '' },
-            filter: { start: '', end: '' }, // 筛选状态
+            filter: { start: '', end: '' },
             records: [],
             chart: null
         }
     },
     computed: {
-        // 1. 基础数据处理（排序、补全费用、计算日变化）
-        processedRecords() {
-            const sorted = [...this.records].sort((a, b) => new Date(a.date) - new Date(b.date));
-            let lastValidCost = 0;
-            return sorted.map((record, index) => {
-                let displayCost = 0;
-                if (record.cost && parseFloat(record.cost) > 0) {
-                    displayCost = parseFloat(record.cost);
-                    lastValidCost = displayCost;
+        // 1. 原始记录排序
+        sortedRawRecords() {
+            return [...this.records].sort((a, b) => new Date(a.date) - new Date(b.date));
+        },
+        
+        // 2. 智能补全数据：核心逻辑！
+        // 生成连续的每一天，如果某天没数据，就复制最近一次的数据
+        fullContinuosData() {
+            if (this.sortedRawRecords.length === 0) return [];
+
+            const recordsMap = new Map();
+            this.sortedRawRecords.forEach(r => recordsMap.set(r.date, r));
+
+            const start = new Date(this.sortedRawRecords[0].date);
+            const end = new Date(this.sortedRawRecords[this.sortedRawRecords.length - 1].date);
+            // 如果今天是最新日期，且比最后记录晚，是否要补全到今天？
+            // 暂时只补全到最后一条记录的日期，避免图表尾部拖太长
+            
+            const result = [];
+            let lastKnown = { 
+                weight: this.sortedRawRecords[0].weight, 
+                cost: parseFloat(this.sortedRawRecords[0].cost) || 0 
+            };
+
+            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                const dateStr = d.toISOString().split('T')[0];
+                const existing = recordsMap.get(dateStr);
+
+                if (existing) {
+                    // 有真实数据，更新“最近已知”
+                    lastKnown = { 
+                        weight: parseFloat(existing.weight), 
+                        cost: parseFloat(existing.cost) || 0 
+                    };
+                    result.push({
+                        ...existing,
+                        weight: lastKnown.weight,
+                        filledCost: lastKnown.cost,
+                        isAuto: false
+                    });
                 } else {
-                    displayCost = lastValidCost;
+                    // 无数据，使用“最近已知” (复制策略)
+                    result.push({
+                        date: dateStr,
+                        weight: lastKnown.weight,
+                        cost: 0, // 原始cost为0
+                        filledCost: lastKnown.cost, // 统计用的cost为复制值
+                        note: '',
+                        isAuto: true // 标记为自动补全
+                    });
                 }
+            }
+            
+            // 计算日变化 (基于连续数据)
+            return result.map((curr, idx) => {
                 let dailyDiff = null;
-                if (index > 0) {
-                    dailyDiff = (record.weight - sorted[index - 1].weight) * 2;
+                if (idx > 0) {
+                    dailyDiff = (curr.weight - result[idx - 1].weight) * 2;
                 }
-                return {
-                    ...record,
-                    weight: parseFloat(record.weight),
-                    filledCost: displayCost,
-                    dailyDiff: dailyDiff
-                };
+                return { ...curr, dailyDiff };
             });
         },
-        // 2. 筛选后的数据 (用于图表和列表)
-        filteredRecords() {
-            let data = this.processedRecords;
-            if (this.filter.start) {
-                data = data.filter(r => r.date >= this.filter.start);
-            }
-            if (this.filter.end) {
-                data = data.filter(r => r.date <= this.filter.end);
-            }
+
+        // 3. 图表和列表显示的数据（应用日期筛选）
+        chartData() {
+            let data = this.fullContinuosData;
+            if (this.filter.start) data = data.filter(r => r.date >= this.filter.start);
+            if (this.filter.end) data = data.filter(r => r.date <= this.filter.end);
             return data;
         },
-        // 3. 列表显示数据 (倒序)
+
+        // 4. 表格只显示“真实”记录，不显示自动补全的，以免太乱
         tableData() {
-            return [...this.filteredRecords].reverse();
+            return this.chartData.filter(r => !r.isAuto).reverse();
         },
-        // 4. 当前最新状态 (基于所有数据，不受筛选影响，反映真实进度)
-        lastRecord() {
-            return this.processedRecords.length ? this.processedRecords[this.processedRecords.length-1] : null;
-        },
+
+        // 5. 当前最新状态
         currentWeight() {
-            return this.lastRecord ? this.lastRecord.weight : this.config.start;
+            const data = this.fullContinuosData;
+            return data.length ? data[data.length-1].weight : this.config.start;
         },
-        lostJin() {
-            return ((this.config.start - this.currentWeight) * 2).toFixed(1);
-        },
-        remainJin() {
+        lostJin() { return ((this.config.start - this.currentWeight) * 2).toFixed(1); },
+        remainJin() { 
             let v = (this.currentWeight - this.config.target) * 2;
-            return v > 0 ? v.toFixed(1) : 0;
+            return v > 0 ? v.toFixed(1) : 0; 
         },
         currentStep() {
             const total = this.config.start - this.config.target;
@@ -328,26 +362,23 @@ createApp({
             if(total <= 0) return 100;
             return Math.floor(Math.min(100, Math.max(0, (lost / total) * 100)));
         },
-        // 5. 统计数据 (基于筛选后的数据，这样你可以看某个月的花费)
+        
+        // 6. 统计 (使用 continuous data 中的 filledCost)
         stats() {
-            const data = this.filteredRecords;
+            const data = this.chartData; // 统计当前筛选区间
             if (data.length === 0) return { totalCost: 0, avgCost: 0, costPerJin: 0 };
             
+            // 按照需求：复制最近一次信息到未录入日期
+            // 所以总花费 = 所有天数(含补全) * 对应的 filledCost
             const totalCost = data.reduce((sum, r) => sum + r.filledCost, 0);
             const avgCost = (totalCost / data.length).toFixed(1);
             
-            // 每斤花费基于总减重计算（这里用全局数据算比较合理，或者用筛选区间的首尾差？）
-            // 逻辑选择：使用筛选区间的减重值。
+            // 计算区间内减重
             const startW = data[0].weight;
             const endW = data[data.length-1].weight;
             const lostInPeriod = (startW - endW) * 2;
             
-            let costPerJin = 0;
-            if (lostInPeriod > 0) {
-                costPerJin = (totalCost / lostInPeriod).toFixed(1);
-            } else {
-                costPerJin = "∞"; 
-            }
+            let costPerJin = lostInPeriod > 0 ? (totalCost / lostInPeriod).toFixed(1) : "∞";
             
             return {
                 totalCost: totalCost.toFixed(0),
@@ -355,57 +386,39 @@ createApp({
                 costPerJin: costPerJin
             };
         },
-        // 6. 时间统计 (基于全局数据)
+
         timeStats() {
-            const data = this.processedRecords;
+            const data = this.fullContinuosData;
             if (data.length < 1) return { daysSpent: 0, daysRemaining: '∞' };
+            const daysSpent = data.length;
             
-            const firstDate = new Date(data[0].date);
-            const lastDate = new Date(data[data.length-1].date);
-            
-            // 已花费天数
-            const diffTime = Math.abs(lastDate - firstDate);
-            const daysSpent = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 包含当天
-            
-            // 预测逻辑
             const totalLost = this.config.start - this.currentWeight;
             let daysRemaining = '∞';
             
             if (totalLost > 0 && daysSpent > 0) {
-                const ratePerDay = totalLost / daysSpent; // 每天减多少kg
+                const ratePerDay = totalLost / daysSpent; 
                 const remainingKg = this.currentWeight - this.config.target;
                 if (remainingKg > 0) {
-                    const estDays = Math.ceil(remainingKg / ratePerDay);
-                    daysRemaining = estDays;
+                    daysRemaining = Math.ceil(remainingKg / ratePerDay);
                 } else {
-                    daysRemaining = 0; // 已达成
+                    daysRemaining = 0;
                 }
             }
-            
-            return {
-                daysSpent: daysSpent,
-                daysRemaining: daysRemaining
-            };
+            return { daysSpent, daysRemaining };
         }
     },
     watch: {
-        filteredRecords: {
-            handler() { this.initChart(); },
-            deep: true
-        }
+        chartData: { handler() { this.initChart(); }, deep: true }
     },
     mounted() {
         const saved = localStorage.getItem('pacman_config');
         if(saved) try { this.config = { ...this.config, ...JSON.parse(saved) }; } catch(e){}
         if(this.config.token && this.config.gistId) this.pullData();
         else this.showConfig = true;
-        
         window.addEventListener('resize', () => this.chart && this.chart.resize());
     },
     methods: {
-        notify(text, type='success') {
-            this.msg = text; this.msgType = type; setTimeout(() => this.msg = '', 3000);
-        },
+        notify(text, type='success') { this.msg = text; this.msgType = type; setTimeout(() => this.msg = '', 3000); },
         clearFilter() { this.filter.start = ''; this.filter.end = ''; },
         getDiffTextJin(w) { const d = (w - this.config.start)*2; return d > 0 ? `+${d.toFixed(1)}` : d.toFixed(1); },
         getDiffColor(w) { return w < this.config.start ? 'text-emerald-600 bg-emerald-100' : 'text-rose-500 bg-rose-100'; },
@@ -419,48 +432,30 @@ createApp({
             if(!this.config.token) return;
             this.loading = true;
             try {
-                const res = await fetch(`https://api.github.com/gists/${this.config.gistId}`, {
-                    headers: { 'Authorization': `token ${this.config.token}` }
-                });
+                const res = await fetch(`https://api.github.com/gists/${this.config.gistId}`, { headers: { 'Authorization': `token ${this.config.token}` } });
                 const data = await res.json();
                 const content = JSON.parse(data.files['data.json'].content);
                 this.records = Array.isArray(content) ? content : content.records;
                 if(content.meta) { this.config.start = content.meta.start; this.config.target = content.meta.target; }
                 this.notify('已同步');
-            } catch(e) { this.notify('拉取失败: ' + e.message, 'error'); } 
-            finally { this.loading = false; }
+            } catch(e) { this.notify(e.message, 'error'); } finally { this.loading = false; }
         },
         async pushData() {
             this.loading = true;
             try {
-                const payload = { 
-                    files: { "data.json": { content: JSON.stringify({
-                        meta: { start: this.config.start, target: this.config.target },
-                        records: this.records
-                    })}} 
-                };
-                await fetch(`https://api.github.com/gists/${this.config.gistId}`, {
-                    method: 'PATCH',
-                    headers: { 'Authorization': `token ${this.config.token}` },
-                    body: JSON.stringify(payload)
-                });
+                const payload = { files: { "data.json": { content: JSON.stringify({ meta: { start: this.config.start, target: this.config.target }, records: this.records })}} };
+                await fetch(`https://api.github.com/gists/${this.config.gistId}`, { method: 'PATCH', headers: { 'Authorization': `token ${this.config.token}` }, body: JSON.stringify(payload) });
                 this.notify('上传成功');
-            } catch(e) { this.notify('上传失败', 'error'); } 
-            finally { this.loading = false; }
+            } catch(e) { this.notify('上传失败', 'error'); } finally { this.loading = false; }
         },
         handleExcelUpload(e) {
-            /* 简化的上传逻辑，保留核心功能 */
-            const f = e.target.files[0];
-            if(!f) return;
+            const f = e.target.files[0]; if(!f) return;
             const r = new FileReader();
             r.onload = (ev) => {
                 const wb = XLSX.read(ev.target.result, {type:'binary'});
                 const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                // 简单映射逻辑，假设列名包含 key
-                const map = new Map();
-                this.records.forEach(x => map.set(x.date, x));
+                const map = new Map(); this.records.forEach(x => map.set(x.date, x));
                 rows.forEach(row => {
-                    // 尝试寻找日期和体重
                     let d, w, c, n;
                     for(let k in row) {
                         let lk = k.toLowerCase();
@@ -490,45 +485,62 @@ createApp({
             this.input.note = '';
             await this.pushData();
         },
-        deleteRecord(r) {
-            if(confirm('删除?')) {
-                this.records = this.records.filter(i => i.date !== r.date);
-                this.pushData();
-            }
-        },
+        deleteRecord(r) { if(confirm('删除?')) { this.records = this.records.filter(i => i.date !== r.date); this.pushData(); } },
+        
         initChart() {
             const dom = document.getElementById('chart');
             if(!dom) return;
             if(this.chart) this.chart.dispose();
             this.chart = echarts.init(dom);
             
-            const data = this.filteredRecords;
+            const data = this.chartData;
             
             this.chart.setOption({
-                // 修复缩放的关键：增加底部 grid 留白
-                grid: { top: 30, right: 10, bottom: 70, left: 40 },
+                // 增加底部高度，确保缩放条不被遮挡
+                grid: { top: 30, right: 10, bottom: 80, left: 40 },
                 dataZoom: [
-                    { type: 'inside', start: 0, end: 100 },
-                    { type: 'slider', bottom: 10, height: 25, handleSize: '100%' }
+                    { 
+                        type: 'inside', 
+                        start: 0, 
+                        end: 100,
+                        filterMode: 'filter' // 关键：确保缩放时X轴重算
+                    },
+                    { 
+                        type: 'slider', 
+                        bottom: 10, 
+                        height: 30, // 加高滑块，方便手指触摸
+                        handleSize: '120%', // 增大手柄
+                        dataBackground: { lineStyle: { color: '#cbd5e1' }, areaStyle: { color: '#f1f5f9' } },
+                        selectedDataBackground: { lineStyle: { color: '#6366f1' }, areaStyle: { color: '#e0e7ff' } }
+                    }
                 ],
                 tooltip: { 
                     trigger: 'axis',
-                    backgroundColor: 'rgba(255,255,255,0.9)',
+                    backgroundColor: 'rgba(255,255,255,0.95)',
                     formatter: p => {
                         const i = data[p[0].dataIndex];
-                        return `<div class="font-bold mb-1">${i.date}</div>
-                                <div>体重: ${i.weight}kg (${(i.weight*2).toFixed(1)}斤)</div>
-                                ${i.filledCost ? `<div class="text-xs text-slate-500">费用: ¥${i.filledCost}</div>` : ''}`;
+                        let html = `<div class="font-bold mb-1 flex justify-between gap-4"><span>${i.date}</span> ${i.isAuto ? '<span class="text-[10px] text-amber-500 bg-amber-50 px-1 rounded">自动补全</span>' : ''}</div>`;
+                        html += `<div>体重: ${i.weight}kg <span class="text-indigo-500">(${(i.weight*2).toFixed(1)}斤)</span></div>`;
+                        html += `<div class="text-xs text-slate-500 mt-1">当日花费: ¥${i.filledCost}${i.isAuto?'(复刻)':''}</div>`;
+                        if(i.note && !i.isAuto) html += `<div class="text-xs text-slate-400 mt-1 pt-1 border-t">${i.note}</div>`;
+                        return html;
                     }
                 },
-                xAxis: { type: 'category', data: data.map(r => r.date), axisLine: { lineStyle: { color: '#e2e8f0' } } },
+                xAxis: { 
+                    type: 'category', 
+                    data: data.map(r => r.date), 
+                    axisLine: { lineStyle: { color: '#e2e8f0' } }
+                },
                 yAxis: { type: 'value', scale: true, splitLine: { lineStyle: { color: '#f1f5f9' } } },
                 series: [{
                     data: data.map(r => r.weight),
                     type: 'line',
                     smooth: true,
+                    // 自动补全的点用虚空圆圈表示，真实点用实心
+                    symbol: (val, params) => data[params.dataIndex].isAuto ? 'none' : 'circle', 
                     symbolSize: 6,
                     itemStyle: { color: '#6366f1' },
+                    lineStyle: { width: 3 },
                     areaStyle: {
                         color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(99,102,241,0.2)'},{offset:1,color:'rgba(99,102,241,0)'}])
                     }
