@@ -2,28 +2,40 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>身材吃豆人 (双向同步版)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#f8fafc">
+    <title>身材吃豆人</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/740/740935.png">
+
     <style>
         body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
             background-color: #f8fafc; 
             color: #334155; 
             -webkit-tap-highlight-color: transparent;
+            /* 防止iOS回弹 */
+            overscroll-behavior-y: none;
         }
         [v-cloak] { display: none; }
+        
         .glass {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 1);
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
         }
+
         /* --- 吃豆人样式 --- */
         .pac-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; width: 100%; max-width: 340px; margin: 0 auto; }
         .pac-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border-radius: 4px; transition: all 0.3s; }
@@ -31,17 +43,33 @@
         .dot { width: 5px; height: 5px; background-color: #cbd5e1; border-radius: 50%; }
         .pacman { width: 20px; height: 20px; border-radius: 50%; position: relative; z-index: 10; transform: rotate(90deg); animation: chomp 0.3s infinite alternate linear; }
         @keyframes chomp { 0% { background: conic-gradient(transparent 30deg, #f59e0b 30deg, #f59e0b 330deg, transparent 330deg); } 100% { background: conic-gradient(transparent 0deg, #f59e0b 0deg, #f59e0b 360deg, transparent 360deg); } }
+        
         .input-light { background: #ffffff; border: 1px solid #e2e8f0; color: #1e293b; }
         .input-light:focus { border-color: #6366f1; outline: none; box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1); }
         .custom-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+        /* 海报专用样式 */
+        .poster-container {
+            background: linear-gradient(135deg, #fff1eb 0%, #ace0f9 100%);
+            width: 375px; /* 固定宽度以保证生成效果 */
+            padding: 30px;
+            border-radius: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: absolute;
+            left: -9999px; /* 移出屏幕渲染 */
+            top: 0;
+            color: #334155;
+        }
     </style>
 </head>
-<body>
+<body class="pb-safe">
 
-<div id="app" v-cloak class="min-h-screen p-3 sm:p-6 max-w-7xl mx-auto pb-24">
+<div id="app" v-cloak class="min-h-screen p-3 sm:p-6 max-w-7xl mx-auto pb-24 pt-safe">
     
-    <div v-if="msg" class="fixed top-6 left-1/2 -translate-x-1/2 z-[60] px-6 py-3 rounded-full shadow-xl text-sm font-bold flex items-center gap-2 border border-white/20 animate-bounce"
+    <div v-if="msg" class="fixed top-6 left-1/2 -translate-x-1/2 z-[80] px-6 py-3 rounded-full shadow-xl text-sm font-bold flex items-center gap-2 border border-white/20 animate-bounce"
          :class="msgType === 'success' ? 'bg-emerald-600 text-white' : 'bg-rose-500 text-white'">
         <i class="fas" :class="msgType === 'success' ? 'fa-check' : 'fa-exclamation-circle'"></i> {{ msg }}
     </div>
@@ -49,21 +77,77 @@
     <header class="flex justify-between items-center mb-6">
         <div class="flex items-center gap-2">
             <div class="text-amber-500 text-2xl"><i class="fas fa-ghost"></i></div>
-            <h1 class="text-lg font-black text-slate-800">身材吃豆人 <span class="text-[10px] text-slate-400 font-normal uppercase ml-1">Live Sync</span></h1>
+            <h1 class="text-lg font-black text-slate-800">身材吃豆人</h1>
         </div>
         <div class="flex gap-2">
-            <input type="file" ref="fileInput" @change="handleExcelUpload" accept=".xlsx,.xls,.csv" class="hidden">
-            <button @click="$refs.fileInput.click()" class="bg-white px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 shadow-sm"><i class="fas fa-upload text-emerald-500"></i> 导入</button>
-            <button @click="showConfig=true" class="bg-white w-8 h-8 rounded-lg border border-slate-200 text-slate-400 shadow-sm flex items-center justify-center hover:text-indigo-500 transition">
-                <i class="fas fa-cog" :class="{'fa-spin': loading}"></i>
+            <button @click="generatePoster" class="bg-indigo-500 text-white w-9 h-9 rounded-lg shadow-sm flex items-center justify-center hover:bg-indigo-600 transition active:scale-95">
+                <i class="fas fa-camera"></i>
             </button>
+            
+            <input type="file" ref="fileInput" @change="handleExcelUpload" accept=".xlsx,.xls,.csv" class="hidden">
+            <button @click="$refs.fileInput.click()" class="bg-white w-9 h-9 rounded-lg border border-slate-200 text-slate-400 shadow-sm flex items-center justify-center"><i class="fas fa-upload"></i></button>
+            <button @click="showConfig=true" class="bg-white w-9 h-9 rounded-lg border border-slate-200 text-slate-400 shadow-sm flex items-center justify-center"><i class="fas fa-cog"></i></button>
         </div>
     </header>
 
-    <div v-if="showConfig" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="bg-white w-full max-w-sm p-6 rounded-2xl shadow-2xl">
+    <div ref="posterArea" class="poster-container">
+        <div class="text-amber-500 text-4xl mb-2"><i class="fas fa-ghost"></i></div>
+        <h2 class="text-2xl font-black text-slate-800 mb-1">我的减重日记</h2>
+        <div class="text-sm text-slate-500 mb-6 uppercase tracking-widest">{{ new Date().toISOString().split('T')[0] }}</div>
+        
+        <div class="bg-white/60 backdrop-blur rounded-2xl p-6 w-full shadow-lg border border-white/50 mb-6">
+            <div class="flex justify-between items-end mb-4 border-b border-slate-200/50 pb-4">
+                <div>
+                    <div class="text-xs text-slate-400 font-bold uppercase">Current Weight</div>
+                    <div class="text-5xl font-black text-slate-800 tracking-tighter">{{ currentWeight }}<span class="text-lg text-slate-400 ml-1">kg</span></div>
+                </div>
+                <div class="text-right">
+                    <div class="text-indigo-600 font-black text-2xl">{{ lostJin }} <span class="text-sm">斤</span></div>
+                    <div class="text-xs text-slate-400 font-bold uppercase">Total Lost</div>
+                </div>
+            </div>
+            
+            <div class="pac-grid mb-2">
+                <div v-for="n in 100" :key="n" class="pac-cell" :style="{backgroundColor: n < currentStep ? '#ffedd5' : '#f1f5f9'}">
+                    <div v-if="n === currentStep" class="pacman" style="width:16px;height:16px;"></div>
+                    <div v-else-if="n > currentStep" class="dot"></div>
+                </div>
+            </div>
+            <div class="text-center mt-2 text-xs font-bold text-slate-400">进度 {{ currentStep }}%</div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 w-full">
+            <div class="bg-white/60 rounded-xl p-4 text-center shadow-sm">
+                <div class="text-2xl font-black text-slate-700">{{ timeStats.daysSpent }}</div>
+                <div class="text-[10px] text-slate-400 font-bold uppercase">坚持天数</div>
+            </div>
+            <div class="bg-white/60 rounded-xl p-4 text-center shadow-sm">
+                <div class="text-2xl font-black text-slate-700">¥{{ stats.totalCost }}</div>
+                <div class="text-[10px] text-slate-400 font-bold uppercase">减肥投入</div>
+            </div>
+        </div>
+        
+        <div class="mt-8 text-[10px] text-slate-400 font-medium flex items-center gap-1">
+            <i class="fas fa-qrcode"></i> Shape Pac-Man
+        </div>
+    </div>
+
+    <div v-if="showPosterModal" class="fixed inset-0 z-[70] bg-slate-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-6" @click.self="showPosterModal=false">
+        <div class="relative max-w-sm w-full">
+            <button @click="showPosterModal=false" class="absolute -top-10 right-0 text-white/80 hover:text-white text-xl"><i class="fas fa-times"></i></button>
+            <div class="bg-white rounded-2xl overflow-hidden shadow-2xl">
+                <img :src="posterImage" class="w-full h-auto block" alt="Share Poster">
+            </div>
+            <p class="text-center text-white/70 text-sm mt-4 font-medium animate-pulse">
+                <i class="fas fa-hand-pointer"></i> 长按图片保存或分享
+            </p>
+        </div>
+    </div>
+
+    <div v-if="showConfig" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" @click.self="showConfig=false">
+        <div class="bg-white w-full max-w-sm p-6 rounded-2xl shadow-2xl animate-fade-in-up">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="font-bold text-lg">⚙️ 云端设置</h3>
+                <h3 class="font-bold text-lg">⚙️ 设置</h3>
                 <button @click="showConfig=false" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
             </div>
             <div class="space-y-4">
@@ -74,14 +158,15 @@
                     <div><label class="text-xs font-bold text-slate-400">目标(kg)</label><input type="number" v-model.number="config.target" class="w-full input-light rounded-lg px-2 py-1 mt-1 text-sm font-bold text-indigo-600"></div>
                 </div>
                 <div class="flex gap-2 pt-2 border-t border-slate-100 mt-2">
-                    <button @click="pullData" :disabled="loading" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2"><i class="fas fa-cloud-download-alt"></i> 拉取并保存</button>
-                    <button @click="saveConfigAndPush" :disabled="loading" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-lg text-xs font-bold shadow-md transition flex items-center justify-center gap-2"><i class="fas fa-save"></i> 仅保存配置</button>
+                    <button @click="pullData" :disabled="loading" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2">拉取</button>
+                    <button @click="saveConfigAndPush" :disabled="loading" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-lg text-xs font-bold shadow-md transition flex items-center justify-center gap-2">保存配置</button>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
         <div class="lg:col-span-4 flex flex-col gap-5">
             <div class="glass rounded-2xl p-5 border-t-4 border-amber-400 relative overflow-hidden">
                 <div class="flex justify-between items-baseline mb-2">
@@ -128,19 +213,17 @@
                         <input type="number" v-model.number="input.cost" placeholder="¥ 花费" class="flex-1 input-light rounded-lg px-3 py-2 text-sm font-bold">
                     </div>
                     <input type="text" v-model="input.note" @keyup.enter="addRecord" placeholder="备注..." class="w-full input-light rounded-lg px-3 py-2 text-sm">
-                    <button @click="addRecord" :disabled="loading" class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold text-sm hover:bg-slate-700 transition flex justify-center items-center gap-2">
-                        <span v-if="loading"><i class="fas fa-spinner fa-spin"></i> 处理中...</span><span v-else>打卡记录</span>
+                    <button @click="addRecord" :disabled="loading" class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold text-sm hover:bg-slate-700 transition flex justify-center items-center gap-2 shadow-xl shadow-slate-200 active:scale-[0.98]">
+                        <span v-if="loading"><i class="fas fa-spinner fa-spin"></i> 同步中...</span><span v-else>打卡记录</span>
                     </button>
                 </div>
             </div>
         </div>
 
         <div class="lg:col-span-8 flex flex-col gap-4">
-            
             <div class="glass rounded-xl p-3 flex flex-col sm:flex-row gap-3 items-center justify-between">
                 <div class="text-xs font-bold text-slate-400 uppercase flex items-center gap-2">
-                    <i class="fas fa-sync-alt" :class="{'text-indigo-500 fa-spin': isZooming}"></i> 
-                    {{ isZooming ? '正在缩放同步...' : '缩放联动模式' }}
+                    <i class="fas fa-sync-alt" :class="{'text-indigo-500 fa-spin': isZooming}"></i> {{ isZooming ? '缩放中...' : '图表联动' }}
                 </div>
                 <div class="flex items-center gap-2 w-full sm:w-auto">
                     <input type="date" v-model="filter.start" @change="updateChartZoom" class="input-light rounded-lg px-2 py-1 text-xs font-bold text-slate-600 flex-1">
@@ -157,7 +240,7 @@
 
             <div class="glass rounded-2xl overflow-hidden flex flex-col h-[500px]">
                 <div class="p-3 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
-                    <span class="text-xs font-bold text-slate-500">原始数据记录</span>
+                    <span class="text-xs font-bold text-slate-500">记录明细</span>
                     <span class="text-[10px] bg-white border px-2 py-0.5 rounded text-slate-400">{{ tableData.length }} 条</span>
                 </div>
                 <div class="overflow-auto custom-scroll flex-1 p-2">
@@ -195,9 +278,11 @@ createApp({
     data() {
         return {
             loading: false, showConfig: false, msg: '', msgType: 'info', isZooming: false,
+            // 海报相关
+            showPosterModal: false, posterImage: '',
             config: { token: '', gistId: '', start: 80, target: 65 },
             input: { date: new Date().toISOString().split('T')[0], weight: '', cost: '', note: '' },
-            filter: { start: '', end: '' }, // 现在既是筛选器，也是显示器
+            filter: { start: '', end: '' },
             records: [],
             chart: null
         }
@@ -228,20 +313,13 @@ createApp({
                 return { ...curr, dailyDiff };
             });
         },
-        // 这里需要注意：chartData 不再直接根据 filter 过滤，而是全量给 chart，
-        // 缩放 (Zoom) 效果由 ECharts 自身的 dataZoom 控制。
-        // filter 仅用于计算 stats 和 列表显示。
         chartData() { return this.fullContinuosData; },
-        
-        // 动态过滤数据用于列表展示（根据 DataZoom 选定的范围）
         displayedRecords() {
             let data = this.fullContinuosData;
-            // 如果 filter 有值，就用 filter 过滤列表，否则显示全部
             if (this.filter.start) data = data.filter(r => r.date >= this.filter.start);
             if (this.filter.end) data = data.filter(r => r.date <= this.filter.end);
             return data;
         },
-        
         tableData() { return this.displayedRecords.filter(r => !r.isAuto).reverse(); },
         currentWeight() { const data = this.fullContinuosData; return data.length ? data[data.length-1].weight : this.config.start; },
         lostJin() { return ((this.config.start - this.currentWeight) * 2).toFixed(1); },
@@ -251,7 +329,7 @@ createApp({
             if(total <= 0) return 100; return Math.floor(Math.min(100, Math.max(0, (lost / total) * 100)));
         },
         stats() {
-            const data = this.displayedRecords; // 统计也随缩放变化
+            const data = this.displayedRecords; 
             if (data.length === 0) return { totalCost: 0, avgCost: 0, costPerJin: 0 };
             const totalCost = data.reduce((sum, r) => sum + r.filledCost, 0);
             const avgCost = (totalCost / data.length).toFixed(1);
@@ -289,6 +367,28 @@ createApp({
         cleanGistId() { if(this.config.gistId.includes('/')) { this.config.gistId = this.config.gistId.split('/').pop(); } this.saveToLocal(); },
         async saveConfigAndPush() { this.saveToLocal(); this.showConfig = false; this.notify('配置已保存'); },
         
+        // --- 核心功能：生成海报 ---
+        async generatePoster() {
+            this.loading = true;
+            try {
+                const el = this.$refs.posterArea;
+                // 使用 html2canvas 捕捉
+                const canvas = await html2canvas(el, {
+                    scale: 2, // 高清
+                    useCORS: true,
+                    backgroundColor: null,
+                });
+                this.posterImage = canvas.toDataURL("image/png");
+                this.showPosterModal = true;
+                this.notify('海报生成成功');
+            } catch(e) {
+                console.error(e);
+                this.notify('生成海报失败', 'error');
+            } finally {
+                this.loading = false;
+            }
+        },
+
         async pullData() {
             if(!this.config.token || !this.config.gistId) { this.notify('请先完善配置', 'error'); return; }
             this.loading = true; this.saveToLocal();
@@ -349,33 +449,15 @@ createApp({
         getDiffTextJin(w) { const d = (w - this.config.start)*2; return d > 0 ? `+${d.toFixed(1)}` : d.toFixed(1); },
         getDiffColor(w) { return w < this.config.start ? 'text-emerald-600 bg-emerald-100' : 'text-rose-500 bg-rose-100'; },
 
-        // --- 核心修复：双向绑定逻辑 ---
-        
-        // 1. 用户手动修改输入框日期 -> 触发图表缩放
         updateChartZoom() {
             if(!this.chart || !this.filter.start || !this.filter.end) return;
-            // 找到这两个日期在数据中的百分比位置
-            // 这里更简单的方法是直接 dispatchAction 用 dataZoom 的 startValue/endValue
-            this.chart.dispatchAction({
-                type: 'dataZoom',
-                startValue: this.filter.start,
-                endValue: this.filter.end
-            });
+            this.chart.dispatchAction({ type: 'dataZoom', startValue: this.filter.start, endValue: this.filter.end });
         },
-
-        // 2. 重置按钮
         resetZoom() {
             if(!this.chart) return;
-            this.chart.dispatchAction({
-                type: 'dataZoom',
-                start: 0,
-                end: 100
-            });
-            // 清空输入框
-            this.filter.start = '';
-            this.filter.end = '';
+            this.chart.dispatchAction({ type: 'dataZoom', start: 0, end: 100 });
+            this.filter.start = ''; this.filter.end = '';
         },
-
         initChart() {
             const dom = document.getElementById('chart');
             if(!dom) return;
@@ -387,13 +469,7 @@ createApp({
                 grid: { top: 30, right: 10, bottom: 80, left: 40 },
                 dataZoom: [
                     { type: 'inside', start: 0, end: 100 },
-                    { 
-                        type: 'slider', 
-                        bottom: 10, 
-                        height: 30, 
-                        handleSize: '120%',
-                        dataBackground: { lineStyle: { color: '#cbd5e1' }, areaStyle: { color: '#f1f5f9' } } 
-                    }
+                    { type: 'slider', bottom: 10, height: 30, handleSize: '120%', dataBackground: { lineStyle: { color: '#cbd5e1' }, areaStyle: { color: '#f1f5f9' } } }
                 ],
                 tooltip: { 
                     trigger: 'axis', backgroundColor: 'rgba(255,255,255,0.95)',
@@ -416,26 +492,15 @@ createApp({
                     areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(99,102,241,0.2)'},{offset:1,color:'rgba(99,102,241,0)'}]) }
                 }]
             });
-
-            // 3. 监听图表自身的缩放事件 -> 更新输入框
             this.chart.on('dataZoom', (params) => {
                 this.isZooming = true;
-                // 获取当前 DataZoom 的状态
                 const option = this.chart.getOption();
-                // 这里的 axis data 是全量日期
                 const axisData = option.xAxis[0].data;
                 const startPercent = params.start != null ? params.start : option.dataZoom[0].start;
                 const endPercent = params.end != null ? params.end : option.dataZoom[0].end;
-
-                // 简单的索引计算
                 const startIndex = Math.floor(startPercent / 100 * (axisData.length - 1));
                 const endIndex = Math.ceil(endPercent / 100 * (axisData.length - 1));
-                
-                // 更新 Vue 状态
-                this.filter.start = axisData[startIndex];
-                this.filter.end = axisData[endIndex];
-                
-                // 稍微延迟关闭旋转动画
+                this.filter.start = axisData[startIndex]; this.filter.end = axisData[endIndex];
                 setTimeout(() => this.isZooming = false, 500);
             });
         }
