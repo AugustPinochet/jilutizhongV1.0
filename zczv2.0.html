@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>身材吃豆人 (连续图表版)</title>
+    <title>身材吃豆人 (自动同步版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
@@ -19,7 +19,6 @@
         }
         [v-cloak] { display: none; }
         
-        /* 玻璃拟态卡片 */
         .glass {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(12px);
@@ -72,7 +71,7 @@
 
 <div id="app" v-cloak class="min-h-screen p-3 sm:p-6 max-w-7xl mx-auto pb-24">
     
-    <div v-if="msg" class="fixed top-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-xl text-sm font-bold flex items-center gap-2 border border-white/20 animate-bounce"
+    <div v-if="msg" class="fixed top-6 left-1/2 -translate-x-1/2 z-[60] px-6 py-3 rounded-full shadow-xl text-sm font-bold flex items-center gap-2 border border-white/20 animate-bounce"
          :class="msgType === 'success' ? 'bg-emerald-600 text-white' : 'bg-rose-500 text-white'">
         <i class="fas" :class="msgType === 'success' ? 'fa-check' : 'fa-exclamation-circle'"></i> {{ msg }}
     </div>
@@ -80,29 +79,52 @@
     <header class="flex justify-between items-center mb-6">
         <div class="flex items-center gap-2">
             <div class="text-amber-500 text-2xl"><i class="fas fa-ghost"></i></div>
-            <h1 class="text-lg font-black text-slate-800">身材吃豆人 <span class="text-[10px] text-slate-400 font-normal uppercase ml-1">Continuous</span></h1>
+            <h1 class="text-lg font-black text-slate-800">身材吃豆人 <span class="text-[10px] text-slate-400 font-normal uppercase ml-1">Auto-Sync</span></h1>
         </div>
         <div class="flex gap-2">
             <input type="file" ref="fileInput" @change="handleExcelUpload" accept=".xlsx,.xls,.csv" class="hidden">
             <button @click="$refs.fileInput.click()" class="bg-white px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 shadow-sm"><i class="fas fa-upload text-emerald-500"></i> 导入</button>
-            <button @click="showConfig=true" class="bg-white w-8 h-8 rounded-lg border border-slate-200 text-slate-400 shadow-sm flex items-center justify-center"><i class="fas fa-cog"></i></button>
+            <button @click="showConfig=true" class="bg-white w-8 h-8 rounded-lg border border-slate-200 text-slate-400 shadow-sm flex items-center justify-center hover:text-indigo-500 transition">
+                <i class="fas fa-cog" :class="{'fa-spin': loading}"></i>
+            </button>
         </div>
     </header>
 
-    <div v-if="showConfig" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="bg-white w-full max-w-sm p-6 rounded-2xl shadow-2xl">
-            <h3 class="font-bold text-lg mb-4">设置</h3>
-            <div class="space-y-3">
-                <input type="password" v-model="config.token" placeholder="GitHub Token" class="w-full input-light rounded-lg px-3 py-2 text-xs">
-                <input type="text" v-model="config.gistId" placeholder="Gist ID" class="w-full input-light rounded-lg px-3 py-2 text-xs">
-                <div class="flex gap-3">
-                    <input type="number" v-model.number="config.start" placeholder="初始体重" class="w-full input-light rounded-lg px-3 py-2 text-xs font-bold">
-                    <input type="number" v-model.number="config.target" placeholder="目标体重" class="w-full input-light rounded-lg px-3 py-2 text-xs font-bold text-indigo-600">
+    <div v-if="showConfig" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm p-6 rounded-2xl shadow-2xl transform transition-all">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-lg">⚙️ 云端设置</h3>
+                <button @click="showConfig=false" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="text-xs font-bold text-slate-400">GitHub Token</label>
+                    <input type="password" v-model="config.token" placeholder="ghp_..." class="w-full input-light rounded-lg px-3 py-2 text-xs font-mono mt-1">
                 </div>
-                <div class="flex gap-2 pt-2">
-                    <button @click="pullData" class="flex-1 bg-slate-100 py-2 rounded-lg text-xs font-bold">拉取</button>
-                    <button @click="saveConfigAndPush" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold">保存同步</button>
-                    <button @click="showConfig=false" class="px-3 bg-slate-100 rounded-lg text-xs"><i class="fas fa-times"></i></button>
+                <div>
+                    <label class="text-xs font-bold text-slate-400">Gist ID (或完整URL)</label>
+                    <input type="text" v-model="config.gistId" @blur="cleanGistId" placeholder="例如: 8ad89a..." class="w-full input-light rounded-lg px-3 py-2 text-xs font-mono mt-1">
+                    <p class="text-[10px] text-slate-400 mt-1">* ID将会自动保存到本地，下次无需输入</p>
+                </div>
+                <div class="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <div>
+                        <label class="text-xs font-bold text-slate-400">初始(kg)</label>
+                        <input type="number" v-model.number="config.start" class="w-full input-light rounded-lg px-2 py-1 mt-1 text-sm font-bold">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-400">目标(kg)</label>
+                        <input type="number" v-model.number="config.target" class="w-full input-light rounded-lg px-2 py-1 mt-1 text-sm font-bold text-indigo-600">
+                    </div>
+                </div>
+                
+                <div class="flex gap-2 pt-2 border-t border-slate-100 mt-2">
+                    <button @click="pullData" :disabled="loading" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2">
+                        <i class="fas fa-cloud-download-alt"></i> 拉取并保存
+                    </button>
+                    <button @click="saveConfigAndPush" :disabled="loading" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-lg text-xs font-bold shadow-md transition flex items-center justify-center gap-2">
+                        <i class="fas fa-save"></i> 仅保存配置
+                    </button>
                 </div>
             </div>
         </div>
@@ -174,9 +196,10 @@
                         <input type="number" v-model.number="input.weight" placeholder="体重 kg" step="0.1" class="flex-1 input-light rounded-lg px-3 py-2 text-sm font-bold">
                         <input type="number" v-model.number="input.cost" placeholder="¥ 花费" class="flex-1 input-light rounded-lg px-3 py-2 text-sm font-bold">
                     </div>
-                    <input type="text" v-model="input.note" placeholder="备注..." class="w-full input-light rounded-lg px-3 py-2 text-sm">
-                    <button @click="addRecord" :disabled="loading" class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold text-sm hover:bg-slate-700 transition">
-                        {{ loading ? '同步中...' : '打卡记录' }}
+                    <input type="text" v-model="input.note" @keyup.enter="addRecord" placeholder="备注..." class="w-full input-light rounded-lg px-3 py-2 text-sm">
+                    <button @click="addRecord" :disabled="loading" class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold text-sm hover:bg-slate-700 transition flex justify-center items-center gap-2">
+                        <span v-if="loading"><i class="fas fa-spinner fa-spin"></i> 处理中...</span>
+                        <span v-else>打卡记录</span>
                     </button>
                 </div>
             </div>
@@ -270,139 +293,71 @@ createApp({
         }
     },
     computed: {
-        // 1. 原始记录排序
         sortedRawRecords() {
             return [...this.records].sort((a, b) => new Date(a.date) - new Date(b.date));
         },
-        
-        // 2. 智能补全数据：核心逻辑！
-        // 生成连续的每一天，如果某天没数据，就复制最近一次的数据
         fullContinuosData() {
             if (this.sortedRawRecords.length === 0) return [];
-
             const recordsMap = new Map();
             this.sortedRawRecords.forEach(r => recordsMap.set(r.date, r));
-
             const start = new Date(this.sortedRawRecords[0].date);
             const end = new Date(this.sortedRawRecords[this.sortedRawRecords.length - 1].date);
-            // 如果今天是最新日期，且比最后记录晚，是否要补全到今天？
-            // 暂时只补全到最后一条记录的日期，避免图表尾部拖太长
-            
             const result = [];
-            let lastKnown = { 
-                weight: this.sortedRawRecords[0].weight, 
-                cost: parseFloat(this.sortedRawRecords[0].cost) || 0 
-            };
+            let lastKnown = { weight: this.sortedRawRecords[0].weight, cost: parseFloat(this.sortedRawRecords[0].cost) || 0 };
 
             for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
                 const dateStr = d.toISOString().split('T')[0];
                 const existing = recordsMap.get(dateStr);
-
                 if (existing) {
-                    // 有真实数据，更新“最近已知”
-                    lastKnown = { 
-                        weight: parseFloat(existing.weight), 
-                        cost: parseFloat(existing.cost) || 0 
-                    };
-                    result.push({
-                        ...existing,
-                        weight: lastKnown.weight,
-                        filledCost: lastKnown.cost,
-                        isAuto: false
-                    });
+                    lastKnown = { weight: parseFloat(existing.weight), cost: parseFloat(existing.cost) || 0 };
+                    result.push({ ...existing, weight: lastKnown.weight, filledCost: lastKnown.cost, isAuto: false });
                 } else {
-                    // 无数据，使用“最近已知” (复制策略)
-                    result.push({
-                        date: dateStr,
-                        weight: lastKnown.weight,
-                        cost: 0, // 原始cost为0
-                        filledCost: lastKnown.cost, // 统计用的cost为复制值
-                        note: '',
-                        isAuto: true // 标记为自动补全
-                    });
+                    result.push({ date: dateStr, weight: lastKnown.weight, cost: 0, filledCost: lastKnown.cost, note: '', isAuto: true });
                 }
             }
-            
-            // 计算日变化 (基于连续数据)
             return result.map((curr, idx) => {
                 let dailyDiff = null;
-                if (idx > 0) {
-                    dailyDiff = (curr.weight - result[idx - 1].weight) * 2;
-                }
+                if (idx > 0) dailyDiff = (curr.weight - result[idx - 1].weight) * 2;
                 return { ...curr, dailyDiff };
             });
         },
-
-        // 3. 图表和列表显示的数据（应用日期筛选）
         chartData() {
             let data = this.fullContinuosData;
             if (this.filter.start) data = data.filter(r => r.date >= this.filter.start);
             if (this.filter.end) data = data.filter(r => r.date <= this.filter.end);
             return data;
         },
-
-        // 4. 表格只显示“真实”记录，不显示自动补全的，以免太乱
-        tableData() {
-            return this.chartData.filter(r => !r.isAuto).reverse();
-        },
-
-        // 5. 当前最新状态
-        currentWeight() {
-            const data = this.fullContinuosData;
-            return data.length ? data[data.length-1].weight : this.config.start;
-        },
+        tableData() { return this.chartData.filter(r => !r.isAuto).reverse(); },
+        currentWeight() { const data = this.fullContinuosData; return data.length ? data[data.length-1].weight : this.config.start; },
         lostJin() { return ((this.config.start - this.currentWeight) * 2).toFixed(1); },
-        remainJin() { 
-            let v = (this.currentWeight - this.config.target) * 2;
-            return v > 0 ? v.toFixed(1) : 0; 
-        },
+        remainJin() { let v = (this.currentWeight - this.config.target) * 2; return v > 0 ? v.toFixed(1) : 0; },
         currentStep() {
             const total = this.config.start - this.config.target;
             const lost = this.config.start - this.currentWeight;
             if(total <= 0) return 100;
             return Math.floor(Math.min(100, Math.max(0, (lost / total) * 100)));
         },
-        
-        // 6. 统计 (使用 continuous data 中的 filledCost)
         stats() {
-            const data = this.chartData; // 统计当前筛选区间
+            const data = this.chartData;
             if (data.length === 0) return { totalCost: 0, avgCost: 0, costPerJin: 0 };
-            
-            // 按照需求：复制最近一次信息到未录入日期
-            // 所以总花费 = 所有天数(含补全) * 对应的 filledCost
             const totalCost = data.reduce((sum, r) => sum + r.filledCost, 0);
             const avgCost = (totalCost / data.length).toFixed(1);
-            
-            // 计算区间内减重
             const startW = data[0].weight;
             const endW = data[data.length-1].weight;
             const lostInPeriod = (startW - endW) * 2;
-            
             let costPerJin = lostInPeriod > 0 ? (totalCost / lostInPeriod).toFixed(1) : "∞";
-            
-            return {
-                totalCost: totalCost.toFixed(0),
-                avgCost: avgCost,
-                costPerJin: costPerJin
-            };
+            return { totalCost: totalCost.toFixed(0), avgCost: avgCost, costPerJin: costPerJin };
         },
-
         timeStats() {
             const data = this.fullContinuosData;
             if (data.length < 1) return { daysSpent: 0, daysRemaining: '∞' };
             const daysSpent = data.length;
-            
             const totalLost = this.config.start - this.currentWeight;
             let daysRemaining = '∞';
-            
             if (totalLost > 0 && daysSpent > 0) {
                 const ratePerDay = totalLost / daysSpent; 
                 const remainingKg = this.currentWeight - this.config.target;
-                if (remainingKg > 0) {
-                    daysRemaining = Math.ceil(remainingKg / ratePerDay);
-                } else {
-                    daysRemaining = 0;
-                }
+                daysRemaining = remainingKg > 0 ? Math.ceil(remainingKg / ratePerDay) : 0;
             }
             return { daysSpent, daysRemaining };
         }
@@ -412,9 +367,18 @@ createApp({
     },
     mounted() {
         const saved = localStorage.getItem('pacman_config');
-        if(saved) try { this.config = { ...this.config, ...JSON.parse(saved) }; } catch(e){}
-        if(this.config.token && this.config.gistId) this.pullData();
-        else this.showConfig = true;
+        if(saved) {
+            try { 
+                const parsed = JSON.parse(saved);
+                this.config = { ...this.config, ...parsed };
+            } catch(e){}
+        }
+        // 自动拉取逻辑
+        if(this.config.token && this.config.gistId) {
+            this.pullData();
+        } else {
+            this.showConfig = true;
+        }
         window.addEventListener('resize', () => this.chart && this.chart.resize());
     },
     methods: {
@@ -423,31 +387,72 @@ createApp({
         getDiffTextJin(w) { const d = (w - this.config.start)*2; return d > 0 ? `+${d.toFixed(1)}` : d.toFixed(1); },
         getDiffColor(w) { return w < this.config.start ? 'text-emerald-600 bg-emerald-100' : 'text-rose-500 bg-rose-100'; },
         
-        async saveConfigAndPush() {
-            localStorage.setItem('pacman_config', JSON.stringify(this.config));
-            this.showConfig = false;
-            this.records.length === 0 ? this.pullData() : this.pushData();
+        // --- 核心修复：自动保存 ---
+        saveToLocal() {
+            localStorage.setItem('pacman_config', JSON.stringify({
+                token: this.config.token,
+                gistId: this.config.gistId,
+                start: this.config.start,
+                target: this.config.target
+            }));
         },
+        
+        // 智能清洗 Gist ID (防止用户粘贴完整 URL)
+        cleanGistId() {
+            if(this.config.gistId.includes('/')) {
+                const parts = this.config.gistId.split('/');
+                this.config.gistId = parts[parts.length-1];
+            }
+            this.saveToLocal();
+        },
+
+        async saveConfigAndPush() {
+            this.saveToLocal();
+            this.showConfig = false;
+            this.notify('配置已保存');
+        },
+
         async pullData() {
-            if(!this.config.token) return;
+            if(!this.config.token || !this.config.gistId) {
+                this.notify('请先完善 Token 和 Gist ID', 'error');
+                return;
+            }
             this.loading = true;
             try {
+                // 立即保存配置，防止刷新丢失
+                this.saveToLocal();
+                
                 const res = await fetch(`https://api.github.com/gists/${this.config.gistId}`, { headers: { 'Authorization': `token ${this.config.token}` } });
+                
+                if(res.status === 404) throw new Error('Gist ID 错误 (404)');
+                if(res.status === 401) throw new Error('Token 无效 (401)');
+                if(!res.ok) throw new Error(`连接失败 (${res.status})`);
+                
                 const data = await res.json();
+                if(!data.files['data.json']) throw new Error('未找到 data.json 文件');
+                
                 const content = JSON.parse(data.files['data.json'].content);
                 this.records = Array.isArray(content) ? content : content.records;
                 if(content.meta) { this.config.start = content.meta.start; this.config.target = content.meta.target; }
-                this.notify('已同步');
-            } catch(e) { this.notify(e.message, 'error'); } finally { this.loading = false; }
+                
+                this.showConfig = false;
+                this.notify('数据拉取成功');
+            } catch(e) { 
+                this.notify(e.message, 'error'); 
+                this.showConfig = true; // 出错时保持弹窗打开
+            } finally { this.loading = false; }
         },
+
         async pushData() {
             this.loading = true;
             try {
+                this.saveToLocal(); // 每次操作都保存一下配置，保险
                 const payload = { files: { "data.json": { content: JSON.stringify({ meta: { start: this.config.start, target: this.config.target }, records: this.records })}} };
                 await fetch(`https://api.github.com/gists/${this.config.gistId}`, { method: 'PATCH', headers: { 'Authorization': `token ${this.config.token}` }, body: JSON.stringify(payload) });
-                this.notify('上传成功');
-            } catch(e) { this.notify('上传失败', 'error'); } finally { this.loading = false; }
+                this.notify('云端同步完成');
+            } catch(e) { this.notify('同步失败: ' + e.message, 'error'); } finally { this.loading = false; }
         },
+        
         handleExcelUpload(e) {
             const f = e.target.files[0]; if(!f) return;
             const r = new FileReader();
@@ -468,7 +473,7 @@ createApp({
                 });
                 this.records = Array.from(map.values());
                 this.pushData();
-                this.notify('导入完成');
+                this.notify('导入并同步完成');
             };
             r.readAsBinaryString(f);
         },
@@ -496,23 +501,10 @@ createApp({
             const data = this.chartData;
             
             this.chart.setOption({
-                // 增加底部高度，确保缩放条不被遮挡
                 grid: { top: 30, right: 10, bottom: 80, left: 40 },
                 dataZoom: [
-                    { 
-                        type: 'inside', 
-                        start: 0, 
-                        end: 100,
-                        filterMode: 'filter' // 关键：确保缩放时X轴重算
-                    },
-                    { 
-                        type: 'slider', 
-                        bottom: 10, 
-                        height: 30, // 加高滑块，方便手指触摸
-                        handleSize: '120%', // 增大手柄
-                        dataBackground: { lineStyle: { color: '#cbd5e1' }, areaStyle: { color: '#f1f5f9' } },
-                        selectedDataBackground: { lineStyle: { color: '#6366f1' }, areaStyle: { color: '#e0e7ff' } }
-                    }
+                    { type: 'inside', start: 0, end: 100, filterMode: 'filter' },
+                    { type: 'slider', bottom: 10, height: 30, handleSize: '120%', dataBackground: { lineStyle: { color: '#cbd5e1' }, areaStyle: { color: '#f1f5f9' } }, selectedDataBackground: { lineStyle: { color: '#6366f1' }, areaStyle: { color: '#e0e7ff' } } }
                 ],
                 tooltip: { 
                     trigger: 'axis',
@@ -526,24 +518,17 @@ createApp({
                         return html;
                     }
                 },
-                xAxis: { 
-                    type: 'category', 
-                    data: data.map(r => r.date), 
-                    axisLine: { lineStyle: { color: '#e2e8f0' } }
-                },
+                xAxis: { type: 'category', data: data.map(r => r.date), axisLine: { lineStyle: { color: '#e2e8f0' } } },
                 yAxis: { type: 'value', scale: true, splitLine: { lineStyle: { color: '#f1f5f9' } } },
                 series: [{
                     data: data.map(r => r.weight),
                     type: 'line',
                     smooth: true,
-                    // 自动补全的点用虚空圆圈表示，真实点用实心
                     symbol: (val, params) => data[params.dataIndex].isAuto ? 'none' : 'circle', 
                     symbolSize: 6,
                     itemStyle: { color: '#6366f1' },
                     lineStyle: { width: 3 },
-                    areaStyle: {
-                        color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(99,102,241,0.2)'},{offset:1,color:'rgba(99,102,241,0)'}])
-                    }
+                    areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(99,102,241,0.2)'},{offset:1,color:'rgba(99,102,241,0)'}]) }
                 }]
             });
         }
