@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#f8fafc">
-    <title>身材吃豆人 (Pro Max)</title>
+    <title>身材吃豆人 (目标锁定版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -79,7 +79,6 @@
             <button @click="generatePoster" class="bg-indigo-500 text-white w-9 h-9 rounded-lg shadow-sm flex items-center justify-center hover:bg-indigo-600 transition active:scale-95">
                 <i class="fas fa-camera"></i>
             </button>
-            
             <input type="file" ref="fileInput" @change="handleExcelUpload" accept=".xlsx,.xls,.csv" class="hidden">
             <button @click="$refs.fileInput.click()" class="bg-white w-9 h-9 rounded-lg border border-slate-200 text-slate-400 shadow-sm flex items-center justify-center"><i class="fas fa-upload"></i></button>
             <button @click="showConfig=true" class="bg-white w-9 h-9 rounded-lg border border-slate-200 text-slate-400 shadow-sm flex items-center justify-center"><i class="fas fa-cog"></i></button>
@@ -460,8 +459,25 @@ createApp({
             this.chart = echarts.init(dom);
             const data = this.chartData;
 
+            // 核心修复：计算 yAxis 的 min 和 max，确保包含 初始值、目标值 和 所有数据
+            const weights = data.map(r => r.weight);
+            const allValues = [...weights, this.config.start, this.config.target];
+            // 过滤无效值（例如未设置目标时）
+            const validValues = allValues.filter(v => !isNaN(v) && v > 0);
+            
+            let yMin = null;
+            let yMax = null;
+            
+            if (validValues.length > 0) {
+                const minVal = Math.min(...validValues);
+                const maxVal = Math.max(...validValues);
+                // 增加一点缓冲，避免线贴在边框上
+                yMin = Math.floor(minVal - 1);
+                yMax = Math.ceil(maxVal + 1);
+            }
+
             this.chart.setOption({
-                grid: { top: 40, right: 10, bottom: 80, left: 45 }, // left增加，留给斤的刻度
+                grid: { top: 40, right: 10, bottom: 80, left: 45 },
                 dataZoom: [
                     { type: 'inside', start: 0, end: 100 },
                     { type: 'slider', bottom: 10, height: 30, handleSize: '120%', dataBackground: { lineStyle: { color: '#cbd5e1' }, areaStyle: { color: '#f1f5f9' } } }
@@ -471,7 +487,6 @@ createApp({
                     formatter: p => {
                         const i = data[p[0].dataIndex];
                         let html = `<div class="font-bold mb-1 flex justify-between gap-4"><span>${i.date}</span> ${i.isAuto ? '<span class="text-[10px] text-amber-500 bg-amber-50 px-1 rounded">自动</span>' : ''}</div>`;
-                        // Tooltip 强调斤
                         html += `<div>体重: <b class="text-indigo-600">${(i.weight*2).toFixed(1)}斤</b> <span class="text-slate-400 text-xs">(${i.weight}kg)</span></div>`;
                         html += `<div class="text-xs text-slate-500 mt-1">费用: ¥${i.filledCost}</div>`;
                         if(i.note && !i.isAuto) html += `<div class="text-xs text-slate-400 mt-1 pt-1 border-t">${i.note}</div>`;
@@ -482,8 +497,10 @@ createApp({
                 yAxis: { 
                     type: 'value', 
                     scale: true, 
+                    // 强制设置范围，确保目标线和初始线都在视野内
+                    min: yMin,
+                    max: yMax,
                     splitLine: { lineStyle: { color: '#f1f5f9' } },
-                    // Y轴改用斤
                     axisLabel: { formatter: (val) => (val*2).toFixed(0) + '斤', color: '#94a3b8', fontSize: 10 }
                 },
                 series: [{
@@ -492,7 +509,6 @@ createApp({
                     symbol: (val, params) => data[params.dataIndex].isAuto ? 'none' : 'circle', 
                     symbolSize: 6, itemStyle: { color: '#6366f1' }, lineStyle: { width: 3 },
                     areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(99,102,241,0.2)'},{offset:1,color:'rgba(99,102,241,0)'}]) },
-                    // 添加参考线
                     markLine: {
                         symbol: ['none', 'none'],
                         label: { show: true, position: 'insideEndTop', fontSize: 10 },
