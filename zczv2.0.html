@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#f8fafc">
-    <title>身材吃豆人 (目标锁定版)</title>
+    <title>身材吃豆人 (终极版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -459,22 +459,33 @@ createApp({
             this.chart = echarts.init(dom);
             const data = this.chartData;
 
-            // 核心修复：计算 yAxis 的 min 和 max，确保包含 初始值、目标值 和 所有数据
+            // Y轴范围计算：确保包含目标线和初始线
             const weights = data.map(r => r.weight);
-            const allValues = [...weights, this.config.start, this.config.target];
-            // 过滤无效值（例如未设置目标时）
-            const validValues = allValues.filter(v => !isNaN(v) && v > 0);
-            
-            let yMin = null;
-            let yMax = null;
-            
-            if (validValues.length > 0) {
-                const minVal = Math.min(...validValues);
-                const maxVal = Math.max(...validValues);
-                // 增加一点缓冲，避免线贴在边框上
-                yMin = Math.floor(minVal - 1);
-                yMax = Math.ceil(maxVal + 1);
+            const allValues = [...weights, this.config.start, this.config.target].filter(v => !isNaN(v) && v > 0);
+            let yMin = null, yMax = null;
+            if (allValues.length > 0) {
+                yMin = Math.floor(Math.min(...allValues) - 1);
+                yMax = Math.ceil(Math.max(...allValues) + 1);
             }
+
+            // 构造数据，给最后一个点加 Label
+            const seriesData = data.map((r, index) => {
+                return {
+                    value: r.weight,
+                    label: {
+                        show: index === data.length - 1,
+                        position: 'top',
+                        formatter: p => `${(p.value * 2).toFixed(1)}斤`,
+                        fontWeight: 'bold',
+                        fontSize: 12,
+                        color: '#fff',
+                        backgroundColor: '#6366f1',
+                        padding: [4, 6],
+                        borderRadius: 4,
+                        distance: 10
+                    }
+                };
+            });
 
             this.chart.setOption({
                 grid: { top: 40, right: 10, bottom: 80, left: 45 },
@@ -497,14 +508,13 @@ createApp({
                 yAxis: { 
                     type: 'value', 
                     scale: true, 
-                    // 强制设置范围，确保目标线和初始线都在视野内
                     min: yMin,
                     max: yMax,
                     splitLine: { lineStyle: { color: '#f1f5f9' } },
                     axisLabel: { formatter: (val) => (val*2).toFixed(0) + '斤', color: '#94a3b8', fontSize: 10 }
                 },
                 series: [{
-                    data: data.map(r => r.weight),
+                    data: seriesData, // 使用带 Label 的数据
                     type: 'line', smooth: true,
                     symbol: (val, params) => data[params.dataIndex].isAuto ? 'none' : 'circle', 
                     symbolSize: 6, itemStyle: { color: '#6366f1' }, lineStyle: { width: 3 },
