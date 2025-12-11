@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#f8fafc">
-    <title>身材吃豆人 (终极修正版)</title>
+    <title>身材吃豆人 (终极版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -470,10 +470,12 @@ createApp({
 
             // 构造数据，给最后一个点加 Label
             const seriesData = data.map((r, index) => {
+                const isFirst = index === 0;
+                const isLast = index === data.length - 1;
                 return {
                     value: r.weight,
                     label: {
-                        show: index === data.length - 1,
+                        show: isFirst || isLast,
                         position: 'top',
                         formatter: p => `${(p.value * 2).toFixed(1)}斤`,
                         fontWeight: 'bold',
