@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#f8fafc">
-    <title>身材吃豆人</title>
+    <title>身材吃豆人 (Pro Max)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -15,16 +15,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/740/740935.png">
-
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
             background-color: #f8fafc; 
             color: #334155; 
             -webkit-tap-highlight-color: transparent;
-            /* 防止iOS回弹 */
             overscroll-behavior-y: none;
         }
         [v-cloak] { display: none; }
@@ -52,14 +48,14 @@
         /* 海报专用样式 */
         .poster-container {
             background: linear-gradient(135deg, #fff1eb 0%, #ace0f9 100%);
-            width: 375px; /* 固定宽度以保证生成效果 */
+            width: 375px; 
             padding: 30px;
             border-radius: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
             position: absolute;
-            left: -9999px; /* 移出屏幕渲染 */
+            left: -9999px;
             top: 0;
             color: #334155;
         }
@@ -96,10 +92,15 @@
         <div class="text-sm text-slate-500 mb-6 uppercase tracking-widest">{{ new Date().toISOString().split('T')[0] }}</div>
         
         <div class="bg-white/60 backdrop-blur rounded-2xl p-6 w-full shadow-lg border border-white/50 mb-6">
-            <div class="flex justify-between items-end mb-4 border-b border-slate-200/50 pb-4">
+            <div class="flex justify-between w-full mb-4 px-1 text-[10px] text-slate-500 font-bold border-b border-slate-300/30 pb-2">
+                <div>初始: {{ (config.start * 2).toFixed(1) }}斤 (0%)</div>
+                <div>目标: {{ (config.target * 2).toFixed(1) }}斤 (100%)</div>
+            </div>
+
+            <div class="flex justify-between items-end mb-4">
                 <div>
-                    <div class="text-xs text-slate-400 font-bold uppercase">Current Weight</div>
-                    <div class="text-5xl font-black text-slate-800 tracking-tighter">{{ currentWeight }}<span class="text-lg text-slate-400 ml-1">kg</span></div>
+                    <div class="text-xs text-slate-400 font-bold uppercase">Current</div>
+                    <div class="text-5xl font-black text-slate-800 tracking-tighter">{{ (currentWeight * 2).toFixed(1) }}<span class="text-lg text-slate-400 ml-1">斤</span></div>
                 </div>
                 <div class="text-right">
                     <div class="text-indigo-600 font-black text-2xl">{{ lostJin }} <span class="text-sm">斤</span></div>
@@ -170,8 +171,8 @@
         <div class="lg:col-span-4 flex flex-col gap-5">
             <div class="glass rounded-2xl p-5 border-t-4 border-amber-400 relative overflow-hidden">
                 <div class="flex justify-between items-baseline mb-2">
-                    <div class="text-4xl font-black text-slate-800">{{ currentWeight }}<span class="text-sm font-normal text-slate-400 ml-1">kg</span></div>
-                    <div class="text-indigo-600 font-bold text-lg">{{ (currentWeight * 2).toFixed(1) }} <span class="text-xs">斤</span></div>
+                    <div class="text-4xl font-black text-slate-800">{{ (currentWeight * 2).toFixed(1) }}<span class="text-sm font-normal text-slate-400 ml-1">斤</span></div>
+                    <div class="text-indigo-600 font-bold text-lg text-xs">{{ currentWeight }} kg</div>
                 </div>
                 <div class="pac-grid mb-4">
                     <div v-for="n in 100" :key="n" class="pac-cell" :class="{'eaten': n < currentStep}">
@@ -367,17 +368,11 @@ createApp({
         cleanGistId() { if(this.config.gistId.includes('/')) { this.config.gistId = this.config.gistId.split('/').pop(); } this.saveToLocal(); },
         async saveConfigAndPush() { this.saveToLocal(); this.showConfig = false; this.notify('配置已保存'); },
         
-        // --- 核心功能：生成海报 ---
         async generatePoster() {
             this.loading = true;
             try {
                 const el = this.$refs.posterArea;
-                // 使用 html2canvas 捕捉
-                const canvas = await html2canvas(el, {
-                    scale: 2, // 高清
-                    useCORS: true,
-                    backgroundColor: null,
-                });
+                const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: null });
                 this.posterImage = canvas.toDataURL("image/png");
                 this.showPosterModal = true;
                 this.notify('海报生成成功');
@@ -466,7 +461,7 @@ createApp({
             const data = this.chartData;
 
             this.chart.setOption({
-                grid: { top: 30, right: 10, bottom: 80, left: 40 },
+                grid: { top: 40, right: 10, bottom: 80, left: 45 }, // left增加，留给斤的刻度
                 dataZoom: [
                     { type: 'inside', start: 0, end: 100 },
                     { type: 'slider', bottom: 10, height: 30, handleSize: '120%', dataBackground: { lineStyle: { color: '#cbd5e1' }, areaStyle: { color: '#f1f5f9' } } }
@@ -475,21 +470,45 @@ createApp({
                     trigger: 'axis', backgroundColor: 'rgba(255,255,255,0.95)',
                     formatter: p => {
                         const i = data[p[0].dataIndex];
-                        let html = `<div class="font-bold mb-1 flex justify-between gap-4"><span>${i.date}</span> ${i.isAuto ? '<span class="text-[10px] text-amber-500 bg-amber-50 px-1 rounded">自动补全</span>' : ''}</div>`;
-                        html += `<div>体重: ${i.weight}kg <span class="text-indigo-500">(${(i.weight*2).toFixed(1)}斤)</span></div>`;
-                        html += `<div class="text-xs text-slate-500 mt-1">当日花费: ¥${i.filledCost}</div>`;
+                        let html = `<div class="font-bold mb-1 flex justify-between gap-4"><span>${i.date}</span> ${i.isAuto ? '<span class="text-[10px] text-amber-500 bg-amber-50 px-1 rounded">自动</span>' : ''}</div>`;
+                        // Tooltip 强调斤
+                        html += `<div>体重: <b class="text-indigo-600">${(i.weight*2).toFixed(1)}斤</b> <span class="text-slate-400 text-xs">(${i.weight}kg)</span></div>`;
+                        html += `<div class="text-xs text-slate-500 mt-1">费用: ¥${i.filledCost}</div>`;
                         if(i.note && !i.isAuto) html += `<div class="text-xs text-slate-400 mt-1 pt-1 border-t">${i.note}</div>`;
                         return html;
                     }
                 },
                 xAxis: { type: 'category', data: data.map(r => r.date), axisLine: { lineStyle: { color: '#e2e8f0' } } },
-                yAxis: { type: 'value', scale: true, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+                yAxis: { 
+                    type: 'value', 
+                    scale: true, 
+                    splitLine: { lineStyle: { color: '#f1f5f9' } },
+                    // Y轴改用斤
+                    axisLabel: { formatter: (val) => (val*2).toFixed(0) + '斤', color: '#94a3b8', fontSize: 10 }
+                },
                 series: [{
                     data: data.map(r => r.weight),
                     type: 'line', smooth: true,
                     symbol: (val, params) => data[params.dataIndex].isAuto ? 'none' : 'circle', 
                     symbolSize: 6, itemStyle: { color: '#6366f1' }, lineStyle: { width: 3 },
-                    areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(99,102,241,0.2)'},{offset:1,color:'rgba(99,102,241,0)'}]) }
+                    areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(99,102,241,0.2)'},{offset:1,color:'rgba(99,102,241,0)'}]) },
+                    // 添加参考线
+                    markLine: {
+                        symbol: ['none', 'none'],
+                        label: { show: true, position: 'insideEndTop', fontSize: 10 },
+                        data: [
+                            { 
+                                yAxis: this.config.start, 
+                                label: { formatter: p => `初始 ${(p.value*2).toFixed(1)}斤 (0%)`, color: '#64748b' }, 
+                                lineStyle: { color: '#94a3b8', type: 'dotted' } 
+                            },
+                            { 
+                                yAxis: this.config.target, 
+                                label: { formatter: p => `目标 ${(p.value*2).toFixed(1)}斤 (100%)`, color: '#10b981' }, 
+                                lineStyle: { color: '#10b981', width: 2 } 
+                            }
+                        ]
+                    }
                 }]
             });
             this.chart.on('dataZoom', (params) => {
