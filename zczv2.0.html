@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#f8fafc">
-    <title>身材吃豆人 (终极版)</title>
+    <title>身材吃豆人 (终极修正版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -459,7 +459,7 @@ createApp({
             this.chart = echarts.init(dom);
             const data = this.chartData;
 
-            // Y轴范围计算：确保包含目标线和初始线
+            // Y轴范围计算
             const weights = data.map(r => r.weight);
             const allValues = [...weights, this.config.start, this.config.target].filter(v => !isNaN(v) && v > 0);
             let yMin = null, yMax = null;
@@ -488,7 +488,8 @@ createApp({
             });
 
             this.chart.setOption({
-                grid: { top: 40, right: 10, bottom: 80, left: 45 },
+                // 关键修正：right: 35 留出空间给最后一个点的Label，避免手机端被切掉
+                grid: { top: 40, right: 35, bottom: 80, left: 45 },
                 dataZoom: [
                     { type: 'inside', start: 0, end: 100 },
                     { type: 'slider', bottom: 10, height: 30, handleSize: '120%', dataBackground: { lineStyle: { color: '#cbd5e1' }, areaStyle: { color: '#f1f5f9' } } }
@@ -516,6 +517,8 @@ createApp({
                 series: [{
                     data: seriesData, // 使用带 Label 的数据
                     type: 'line', smooth: true,
+                    // 关键修正：clip: false 允许标签画在格子外面
+                    clip: false,
                     symbol: (val, params) => data[params.dataIndex].isAuto ? 'none' : 'circle', 
                     symbolSize: 6, itemStyle: { color: '#6366f1' }, lineStyle: { width: 3 },
                     areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(99,102,241,0.2)'},{offset:1,color:'rgba(99,102,241,0)'}]) },
